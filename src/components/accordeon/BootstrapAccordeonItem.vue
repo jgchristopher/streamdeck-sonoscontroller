@@ -27,23 +27,16 @@
   </div>
 </template>
 
-<script setup>
-defineProps({
-  accordeonId: {
-    type: String,
-    required: true,
+<script setup lang="ts">
+withDefaults(
+  defineProps<{
+    accordeonId: string;
+    itemId: string;
+    title: string;
+    forceExpanded?: boolean;
+  }>(),
+  {
+    forceExpanded: false,
   },
-  itemId: {
-    type: String,
-    required: true,
-  },
-  title: {
-    type: String,
-    required: true,
-  },
-  forceExpanded: {
-    type: Boolean,
-    default: false,
-  },
-});
+);
 </script>

@@ -3,11 +3,8 @@
     <slot></slot>
   </div>
 </template>
-<script setup>
-defineProps({
-  id: {
-    type: String,
-    required: true,
-  },
-});
+<script setup lang="ts">
+defineProps<{
+  id: string;
+}>();
 </script>

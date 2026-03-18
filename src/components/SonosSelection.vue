@@ -5,8 +5,8 @@
       size="5"
       id="sonosSpeaker"
       @change="
-        (event) => {
-          emit('update:modelValue', event.target.value);
+        (event: Event) => {
+          emit('update:modelValue', (event.target as HTMLSelectElement).value);
           emit('selection-saved');
         }
       "
@@ -46,33 +46,23 @@
     />
   </div>
 </template>
-<script setup>
+<script setup lang="ts">
 import { computed, ref } from "vue";
-import { SonosSpeaker } from "@/modules/pi/SonosSpeaker";
+import type { SonosSpeaker } from "@/modules/pi/SonosSpeaker";
 
-const props = defineProps({
-  modelValue: {
-    required: true,
-    type: Object,
-    default: () =>
-      new SonosSpeaker({
-        zoneName: "",
-        hostAddress: "",
-        uuid: "",
-        isSatellite: false,
-      }),
-  },
-  availableSonosSpeakers: {
-    required: true,
-    type: [], // SonosSpeaker[]
-  },
-});
+const props = defineProps<{
+  modelValue: string;
+  availableSonosSpeakers: SonosSpeaker[];
+}>();
 
-const emit = defineEmits(["update:modelValue", "selection-saved"]);
+const emit = defineEmits<{
+  "update:modelValue": [value: string];
+  "selection-saved": [];
+}>();
 
 const sonosSpeakerFilter = ref("");
 
-const applyFilter = (list) => {
+const applyFilter = (list: SonosSpeaker[]): SonosSpeaker[] => {
   if (!sonosSpeakerFilter.value) return list;
   const filterLc = sonosSpeakerFilter.value.toLowerCase();
   return list.filter((s) => {

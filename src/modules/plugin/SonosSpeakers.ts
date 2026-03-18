@@ -1,4 +1,6 @@
 import { reactive } from "vue";
+import type { BaseOperationResponse, Speaker, SpeakerResponse, OperationalStatusValue } from "@/types/speakers";
+import type { SpeakerState } from "@/types/actions";
 
 // Export the enum separately
 export const OPERATIONAL_STATUS = {
@@ -9,124 +11,48 @@ export const OPERATIONAL_STATUS = {
   CONNECTING: "CONNECTING",
   DISCONNECTED: "DISCONNECTED",
   RATE_LIMITED: "RATE_LIMITED",
-};
-
-/**
- * @typedef {Object} BaseOperationResponse
- * @property {('SUCCESS'|'ERROR')} responseStatus - Status of the operation
- * @property {string} message - Response message
- * @property {boolean} completed - Whether operation completed successfully
- */
-
-/**
- * @typedef {Object} Speaker
- * @property {string[]} contexts - Array of contexts associated with the speaker
- * @property {('UNINITIALIZED'|'UPDATING'|'UPDATED'|'DISCONNECTED'|'RATE_LIMITED')} operationalStatus - Current status of the speaker
- * @property {State} state - Current state of the speaker
- * @property {number[]} updateAttempts - Timestamps of update attempts
- * @property {number} lastChecked - Last checked timestamp (epoch seconds)
- * @property {number} lastUpdated - Last updated timestamp (epoch seconds)
- */
-
-/**
- * @typedef {Object} AudioEqualizer
- * @property {number} bass - Bass level
- * @property {number} treble - Treble level
- * @property {number} volume - Volume level
- */
-
-/**
- * @typedef {Object} PlayingInfo
- * @property {number} position - Current track position
- * @property {number} elapsedSec - Elapsed time in seconds
- * @property {number} durationSec - Total track duration in seconds
- * @property {number} currentTrack - Current track number (zero-based)
- * @property {string} title - Track title
- * @property {string} artist - Track artist
- * @property {string} album - Album name
- * @property {string} albumArtURI - URI for album artwork
- */
-
-/**
- * @typedef {Object} QueueItem
- * @property {string} title - Track title
- * @property {string} artist - Track artist
- * @property {string} album - Album name
- * @property {string} uri - Track URI
- * @property {string} albumArtURI - URI for album artwork
- */
-
-/**
- * @typedef {Object} Queue
- * @property {number} start - Starting index of the queue
- * @property {number} count - Number of items in the queue
- * @property {QueueItem[]} list - List of queue items
- */
-
-/**
- * @typedef {Object} State
- * @property {AudioEqualizer} audioEqualizer - Audio equalizer settings
- * @property {string} playMode - Current play mode from transport settings
- * @property {string} playbackState - Current transport state
- * @property {string} currentURI - Current track URI
- * @property {boolean} muted - Speaker mute status
- * @property {PlayingInfo} [playing] - Currently playing track information (null if not playing)
- * @property {Queue} [queue] - Queue information (only present if requested)
- */
+} as const;
 
 class SonosSpeakers {
   /**
    * Enumeration of possible operational statuses for speakers
-   * @readonly
-   * @enum {string}
    */
   static OPERATIONAL_STATUS = OPERATIONAL_STATUS;
 
+  speakers: Record<string, Speaker>;
+  validOperationalStatuses: OperationalStatusValue[];
+
   constructor() {
-    this.speakers = reactive({}); // Store speakers as key-value pairs
-    this.validOperationalStatuses = Object.values(SonosSpeakers.OPERATIONAL_STATUS);
+    this.speakers = reactive({}) as Record<string, Speaker>;
+    this.validOperationalStatuses = Object.values(SonosSpeakers.OPERATIONAL_STATUS) as OperationalStatusValue[];
   }
 
   /**
    * Adds a new speaker with an empty contexts array and initial status of UNINITIALIZED.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {BaseOperationResponse} Operation result
    */
-  addSpeaker({ UUID }) {
+  addSpeaker({ UUID }: { UUID: string }): BaseOperationResponse {
     if (!this.speakers[UUID]) {
       this.speakers[UUID] = {
         contexts: [],
-        operationalStatus: SonosSpeakers.OPERATIONAL_STATUS.UNINITIALIZED, // Set initial status to UNINITIALIZED
+        operationalStatus: SonosSpeakers.OPERATIONAL_STATUS.UNINITIALIZED,
         state: {},
         updateAttempts: [],
-        lastChecked: 0, // Set lastChecked to epoch
+        lastChecked: 0,
         lastUpdated: Math.floor(Date.now() / 1000),
       };
-      return { status: "SUCCESS", message: "Speaker added", completed: true }; // Return true if the speaker was added
+      return { status: "SUCCESS", message: "Speaker added", completed: true };
     }
     return {
       status: "ERROR",
       message: "Speaker already exists",
       completed: false,
-    }; // Return false if the speaker already exists
+    };
   }
 
   /**
    * Gets a speaker's information and status, including rate limiting checks.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {BaseOperationResponse & {
-   *   secondsLastChecked?: number,
-   *   contexts?: string[],
-   *   operationalStatus?: string,
-   *   state?: State,
-   *   updateAttempts?: number[],
-   *   lastChecked?: number,
-   *   lastUpdated?: number
-   * }} Operation result with speaker details
    */
-  getSpeaker({ UUID }) {
+  getSpeaker({ UUID }: { UUID: string }): SpeakerResponse {
     if (!this.speakers[UUID]) {
       return {
         status: "ERROR",
@@ -167,12 +93,9 @@ class SonosSpeakers {
   }
 
   /**
-   * Gets a speaker's speaker information.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {BaseOperationResponse & { state: State }} Operation result
+   * Gets a speaker's state information.
    */
-  getSpeakerState({ UUID }) {
+  getSpeakerState({ UUID }: { UUID: string }): SpeakerResponse {
     if (!this.speakers[UUID]) {
       return {
         status: "ERROR",
@@ -189,12 +112,9 @@ class SonosSpeakers {
   }
 
   /**
-   * Gets a speaker's status.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {BaseOperationResponse & { operationalStatus: string }} Operation result
+   * Gets a speaker's operational status.
    */
-  getSpeakerOperationalStatus({ UUID }) {
+  getSpeakerOperationalStatus({ UUID }: { UUID: string }): SpeakerResponse {
     if (!this.speakers[UUID]) {
       return {
         status: "ERROR",
@@ -211,14 +131,17 @@ class SonosSpeakers {
   }
 
   /**
-   * Updates a speaker's information and status. If updateLastChecked is true, also updates the lastChecked timestamp.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @param {State} params.state - The speaker information object to update.
-   * @param {boolean} [params.updateLastChecked=false] - Flag to update the lastChecked timestamp.
-   * @returns {BaseOperationResponse} Operation result
+   * Updates a speaker's state and status. If updateLastChecked is true, also updates the lastChecked timestamp.
    */
-  updateSpeakerState({ UUID, state, updateLastChecked = false }) {
+  updateSpeakerState({
+    UUID,
+    state,
+    updateLastChecked = false,
+  }: {
+    UUID: string;
+    state: SpeakerState;
+    updateLastChecked?: boolean;
+  }): BaseOperationResponse {
     if (this.speakers[UUID]) {
       this.speakers[UUID].state = state;
       this.speakers[UUID].operationalStatus = SonosSpeakers.OPERATIONAL_STATUS.UPDATED;
@@ -241,82 +164,77 @@ class SonosSpeakers {
 
   /**
    * Removes a speaker by its unique identifier.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {BaseOperationResponse} Operation result
    */
-  removeSpeaker({ UUID }) {
+  removeSpeaker({ UUID }: { UUID: string }): BaseOperationResponse {
     if (this.speakers[UUID]) {
       delete this.speakers[UUID];
-      return { status: "SUCCESS", message: "Speaker removed", completed: true }; // Return true if the speaker was removed
+      return { status: "SUCCESS", message: "Speaker removed", completed: true };
     }
     return {
       status: "ERROR",
       message: "Speaker does not exist",
       completed: false,
-    }; // Return false if the speaker did not exist
+    };
   }
 
   /**
    * Checks if a speaker exists.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {boolean} True if the speaker exists, false otherwise
    */
-  containsSpeaker({ UUID }) {
+  containsSpeaker({ UUID }: { UUID: string }): boolean {
     return !!this.speakers[UUID];
   }
 
   /**
    * Adds a context to a speaker's contexts array, optionally creating the speaker if it doesn't exist.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @param {string} params.context - The context to add.
-   * @param {boolean} [params.createIfNotExists=false] - Flag to create the speaker if it doesn't exist.
-   * @returns {BaseOperationResponse} Operation result
    */
-  addContext({ UUID, context, createIfNotExists = false }) {
+  addContext({
+    UUID,
+    context,
+    createIfNotExists = false,
+  }: {
+    UUID: string;
+    context: string;
+    createIfNotExists?: boolean;
+  }): BaseOperationResponse {
     // Check if the speaker exists or should be created
     if (!this.speakers[UUID]) {
       if (createIfNotExists) {
         this.addSpeaker({ UUID });
-        // this.speakers[UUID] = {
-        //   contexts: [],
-        //   status: "UNINITIALIZED", // Set initial status to UNINITIALIZED
-        //   lastChecked: 0, // Set lastChecked to epoch
-        //   lastUpdated: 0, // Set lastUpdated to epoch
-        // };
       } else {
         return {
           status: "ERROR",
           message: "Speaker does not exist and createIfNotExists is false",
           completed: false,
-        }; // Exit if the speaker should not be created
+        };
       }
     }
 
-    // Add the context if it doesn't already exist
-    if (!this.speakers[UUID].contexts.includes(context)) {
-      this.speakers[UUID].contexts.push(context);
-      return { status: "SUCCESS", message: "Context added", completed: true }; // Return true if the context was added
+    // Speaker is guaranteed to exist here: either it existed before or addSpeaker just created it
+    const speaker = this.speakers[UUID]!;
+    if (!speaker.contexts.includes(context)) {
+      speaker.contexts.push(context);
+      return { status: "SUCCESS", message: "Context added", completed: true };
     }
 
     return {
       status: "ERROR",
       message: "Context already exists",
       completed: false,
-    }; // Return false if the context already exists
+    };
   }
 
   /**
    * Removes a context from a speaker's contexts array and optionally deletes the speaker if no contexts remain.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @param {string} params.context - The context to remove.
-   * @param {boolean} [params.deleteIfLast=false] - Flag to delete the speaker if no contexts remain.
-   * @returns {BaseOperationResponse} Operation result
    */
-  removeContext({ UUID, context, deleteIfLast = false }) {
+  removeContext({
+    UUID,
+    context,
+    deleteIfLast = false,
+  }: {
+    UUID: string;
+    context: string;
+    deleteIfLast?: boolean;
+  }): BaseOperationResponse {
     if (this.speakers[UUID]) {
       // Check if the context exists
       if (!this.speakers[UUID].contexts.includes(context)) {
@@ -354,14 +272,20 @@ class SonosSpeakers {
 
   /**
    * Moves a context from its current speaker to a new speaker.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the new speaker.
-   * @param {string} params.context - The context to move.
-   * @param {boolean} [params.deleteIfLast=false] - Flag to delete the source speaker if no contexts remain.
-   * @param {boolean} [params.createIfNotExists=false] - Flag to create the new speaker if it doesn't exist.
-   * @returns {BaseOperationResponse} Operation result
    */
-  moveContext({ currentUUID, futureUUID, context, deleteIfLast = false, createIfNotExists = false }) {
+  moveContext({
+    currentUUID,
+    futureUUID,
+    context,
+    deleteIfLast = false,
+    createIfNotExists = false,
+  }: {
+    currentUUID: string;
+    futureUUID: string;
+    context: string;
+    deleteIfLast?: boolean;
+    createIfNotExists?: boolean;
+  }): BaseOperationResponse {
     if (this.containsContext({ UUID: currentUUID, context })) {
       // Remove context from the current speaker and add it to the new speaker
       const removed = this.removeContext({
@@ -395,23 +319,15 @@ class SonosSpeakers {
 
   /**
    * Checks if a speaker has a specific context.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @param {string} params.context - The context to check.
-   * @returns {boolean} True if the context exists, false otherwise
    */
-  containsContext({ UUID, context }) {
-    // Return true if the context exists, false otherwise
+  containsContext({ UUID, context }: { UUID: string; context: string }): boolean {
     return this.speakers[UUID]?.contexts.includes(context) || false;
   }
 
   /**
    * Gets a list of all available contexts from a specific speaker.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {BaseOperationResponse & { contexts: string[] }} Operation result
    */
-  getContexts({ UUID }) {
+  getContexts({ UUID }: { UUID: string }): SpeakerResponse {
     if (!this.speakers[UUID]) {
       return {
         status: "ERROR",
@@ -429,13 +345,11 @@ class SonosSpeakers {
 
   /**
    * Gets the UUID associated with a specific context.
-   * @param {object} params - The parameters object.
-   * @param {string} params.context - The context to search for.
-   * @returns {BaseOperationResponse & { UUID: string }} Operation result
    */
-  getSpeakerByContext({ context }) {
+  getSpeakerByContext({ context }: { context: string }): SpeakerResponse {
     for (const UUID in this.speakers) {
-      if (this.speakers[UUID].contexts.includes(context)) {
+      const speaker = this.speakers[UUID];
+      if (speaker && speaker.contexts.includes(context)) {
         return {
           status: "SUCCESS",
           message: "Context found",
@@ -448,12 +362,9 @@ class SonosSpeakers {
   }
 
   /**
-   * Gets the last updated timestamp of a speaker.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {BaseOperationResponse & { lastChecked: number }} Operation result
+   * Gets the last checked timestamp of a speaker.
    */
-  getLastChecked({ UUID }) {
+  getLastChecked({ UUID }: { UUID: string }): SpeakerResponse {
     if (!this.speakers[UUID]) {
       return {
         status: "ERROR",
@@ -470,14 +381,16 @@ class SonosSpeakers {
   }
 
   /**
-   * Sets the status of a speaker to one of the defined values.
+   * Sets the operational status of a speaker.
    * Implements rate limiting by tracking update attempts within a time window.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @param {string} params.operationalStatus - The new status ("UNINITIALIZED", "UPDATING", "UPDATED", "DISCONNECTED", "RATE_LIMITED").
-   * @returns {BaseOperationResponse} Operation result
    */
-  setOperationalStatus({ UUID, operationalStatus }) {
+  setOperationalStatus({
+    UUID,
+    operationalStatus,
+  }: {
+    UUID: string;
+    operationalStatus: OperationalStatusValue;
+  }): BaseOperationResponse {
     if (!this.speakers[UUID] || !this.validOperationalStatuses.includes(operationalStatus)) {
       return {
         status: "ERROR",
@@ -506,12 +419,9 @@ class SonosSpeakers {
   }
 
   /**
-   * Checks if the last updated timestamp of a speaker is within the specified number of seconds.
-   * @param {object} params - The parameters object.
-   * @param {string} params.UUID - The unique identifier for the speaker.
-   * @returns {BaseOperationResponse & { secondsLastChecked: number }} Operation result
+   * Gets the number of seconds since a speaker was last checked.
    */
-  secondsLastChecked({ UUID }) {
+  secondsLastChecked({ UUID }: { UUID: string }): SpeakerResponse {
     if (!this.speakers[UUID]) {
       return {
         status: "ERROR",
@@ -530,9 +440,8 @@ class SonosSpeakers {
 
   /**
    * Gets a list of all speaker keys.
-   * @returns {BaseOperationResponse & { UUIDs: string[] }} Operation result
    */
-  getAllSpeakers() {
+  getAllSpeakers(): SpeakerResponse {
     return {
       status: "SUCCESS",
       message: "All speakers retrieved",
@@ -543,12 +452,14 @@ class SonosSpeakers {
 
   /**
    * Gets a list of all available contexts from all speakers.
-   * @returns {BaseOperationResponse & { contexts: string[] }} Operation result
    */
-  getAllContexts() {
-    const allContexts = new Set();
+  getAllContexts(): SpeakerResponse {
+    const allContexts = new Set<string>();
     for (const UUID in this.speakers) {
-      this.speakers[UUID].contexts.forEach((context) => allContexts.add(context));
+      const speaker = this.speakers[UUID];
+      if (speaker) {
+        speaker.contexts.forEach((context) => allContexts.add(context));
+      }
     }
     return {
       status: "SUCCESS",

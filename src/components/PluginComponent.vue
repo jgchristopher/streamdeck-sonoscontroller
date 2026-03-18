@@ -2,18 +2,24 @@
   <span>Nothing to see here Plv4!</span>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { StreamDeck } from "@/modules/common/streamdeck";
 
 import { SonosController } from "@/modules/common/sonosController";
 import { sonosControllerActions } from "@/modules/actions/sonosController";
 import SonosSpeakers from "@/modules/plugin/SonosSpeakers";
 import { onMounted, ref } from "vue";
+import type { Ref } from "vue";
+import type { StreamDeckEvent } from "@/types/streamdeck";
+import type { ActionSettings, SpeakerState, ActionFunction, StateFunction } from "@/types/actions";
 
-const streamDeckConnection = ref(null);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type GlobalSettings = Record<string, any>;
 
-const globalSettings = ref({});
-const actionSettings = ref([]);
+const streamDeckConnection: Ref<StreamDeck | null> = ref(null);
+
+const globalSettings: Ref<GlobalSettings> = ref({});
+const actionSettings: Ref<Record<string, ActionSettings>> = ref({});
 
 const deviceCheckInterval = ref(10);
 const deviceTimeoutDuration = ref(5);
@@ -22,86 +28,97 @@ const deviceTimeoutDuration = ref(5);
 // const speakerCheckInterval = ref(10);
 // const speakerTimeoutDuration = ref(5);
 
-let rotationTimeout = [];
-let rotationAmount = [];
-let rotationPercent = [];
+let rotationTimeout: Record<string, ReturnType<typeof setTimeout> | null> = {};
+let rotationAmount: Record<string, number> = {};
+let rotationPercent: Record<string, number> = {};
 
-const actionFunctionMap = {
+interface ActionMapEntry {
+  keyDown?: ActionFunction[];
+  dialRotate?: ActionFunction[];
+  state: {
+    default?: StateFunction | null;
+    keypad?: StateFunction | null;
+    encoder?: StateFunction | null;
+  };
+  [eventName: string]: ActionFunction[] | ActionMapEntry["state"] | undefined;
+}
+
+const actionFunctionMap: Record<string, ActionMapEntry> = {
   "toggle-mute-unmute": {
-    keyDown: [sonosControllerActions.toggleMuteUnmute.action],
+    keyDown: [sonosControllerActions.toggleMuteUnmute!.action],
     state: {
-      default: sonosControllerActions.toggleMuteUnmute.state.default,
+      default: sonosControllerActions.toggleMuteUnmute!.state.default,
       keypad: null,
       encoder: null,
     },
   },
   "toggle-play-pause": {
-    keyDown: [sonosControllerActions.togglePlayPause.action],
+    keyDown: [sonosControllerActions.togglePlayPause!.action],
     state: {
-      default: sonosControllerActions.togglePlayPause.state.default,
+      default: sonosControllerActions.togglePlayPause!.state.default,
       keypad: null,
       encoder: null,
     },
   },
 
   "toggle-play-mode": {
-    keyDown: [sonosControllerActions.togglePlayMode.action],
+    keyDown: [sonosControllerActions.togglePlayMode!.action],
     state: {
-      default: sonosControllerActions.togglePlayMode.state.default,
+      default: sonosControllerActions.togglePlayMode!.state.default,
       keypad: null,
       encoder: null,
     },
   },
   "toggle-input-source": {
-    keyDown: [sonosControllerActions.toggleInputSource.action],
+    keyDown: [sonosControllerActions.toggleInputSource!.action],
     state: {
-      default: sonosControllerActions.toggleInputSource.state.default,
+      default: sonosControllerActions.toggleInputSource!.state.default,
       keypad: null,
       encoder: null,
     },
   },
   "play-next-track": {
-    keyDown: [sonosControllerActions.playNextTrack.action],
+    keyDown: [sonosControllerActions.playNextTrack!.action],
     state: {
-      keypad: sonosControllerActions.playNextTrack.state.keypad,
+      keypad: sonosControllerActions.playNextTrack!.state.keypad,
     },
   },
   "play-previous-track": {
-    keyDown: [sonosControllerActions.playPreviousTrack.action],
+    keyDown: [sonosControllerActions.playPreviousTrack!.action],
     state: {
-      keypad: sonosControllerActions.playPreviousTrack.state.keypad,
+      keypad: sonosControllerActions.playPreviousTrack!.state.keypad,
     },
   },
   "play-sonos-favorite": {
-    keyDown: [sonosControllerActions.playSonosFavorite.action],
+    keyDown: [sonosControllerActions.playSonosFavorite!.action],
     state: {
-      default: sonosControllerActions.playSonosFavorite.state.default,
+      default: sonosControllerActions.playSonosFavorite!.state.default,
       keypad: null,
       encoder: null,
     },
   },
   "volume-up": {
-    keyDown: [sonosControllerActions.volumeUp.action],
+    keyDown: [sonosControllerActions.volumeUp!.action],
     state: {
-      keypad: sonosControllerActions.volumeUp.state.keypad,
+      keypad: sonosControllerActions.volumeUp!.state.keypad,
     },
   },
   "volume-down": {
-    keyDown: [sonosControllerActions.volumeDown.action],
+    keyDown: [sonosControllerActions.volumeDown!.action],
     state: {
-      keypad: sonosControllerActions.volumeDown.state.keypad,
+      keypad: sonosControllerActions.volumeDown!.state.keypad,
     },
   },
   "encoder-audio-equalizer": {
-    dialRotate: [sonosControllerActions.encoderAudioEqualizer.action],
+    dialRotate: [sonosControllerActions.encoderAudioEqualizer!.action],
     state: {
-      encoder: sonosControllerActions.encoderAudioEqualizer.state.encoder,
+      encoder: sonosControllerActions.encoderAudioEqualizer!.state.encoder,
     },
   },
   "currently-playing": {
-    keyDown: [sonosControllerActions.currentlyPlaying.action],
+    keyDown: [sonosControllerActions.currentlyPlaying!.action],
     state: {
-      default: sonosControllerActions.currentlyPlaying.state.default,
+      default: sonosControllerActions.currentlyPlaying!.state.default,
       keypad: null,
       encoder: null,
     },
@@ -110,24 +127,27 @@ const actionFunctionMap = {
 
 const sonosSpeakers = new SonosSpeakers();
 onMounted(async () => {
-  window.connectElgatoStreamDeckSocket = (exPort, exPluginUUID, exRegisterEvent, exInfo) => {
+  (
+    window as Window & { connectElgatoStreamDeckSocket?: (port: string, uuid: string, event: string, info: string) => void }
+  ).connectElgatoStreamDeckSocket = (exPort: string, exPluginUUID: string, exRegisterEvent: string, exInfo: string) => {
     streamDeckConnection.value = new StreamDeck(exPort, exPluginUUID, exRegisterEvent, exInfo, "{}");
 
     streamDeckConnection.value.on("connected", () => {
-      streamDeckConnection.value.requestGlobalSettings();
+      streamDeckConnection.value!.requestGlobalSettings();
     });
 
-    streamDeckConnection.value.on("willAppear", (inMessage) => {
-      let context = inMessage.context;
+    streamDeckConnection.value.on("willAppear", (_inMessage: unknown) => {
+      const inMessage = _inMessage as StreamDeckEvent;
+      const context = inMessage.context!;
       rotationAmount[context] = 0;
       rotationPercent[context] = 0;
       actionSettings.value[context] = {
-        ...inMessage.payload.settings,
-        currentStateIndex: inMessage.payload.state || 0,
-      };
+        ...inMessage.payload!.settings,
+        currentStateIndex: inMessage.payload!.state || 0,
+      } as ActionSettings;
 
       // Get the UUID from settings and initialize if needed
-      const sonosSpeakerUUID = inMessage.payload.settings?.uuid;
+      const sonosSpeakerUUID = inMessage.payload?.settings?.uuid as string | undefined;
 
       // When Action is first created UUID is undefined and will be set in didReceiveSettings
       // until then we will just wait for the didReceiveSettings event and handle it from there
@@ -146,18 +166,20 @@ onMounted(async () => {
       }
     });
 
-    streamDeckConnection.value.on("globalsettings", (inGlobalSettings) => {
+    streamDeckConnection.value.on("globalsettings", (_inGlobalSettings: unknown) => {
+      const inGlobalSettings = _inGlobalSettings as GlobalSettings;
       globalSettings.value = inGlobalSettings;
       deviceCheckInterval.value = inGlobalSettings.deviceCheckInterval;
       deviceTimeoutDuration.value = inGlobalSettings.deviceTimeoutDuration;
     });
 
-    streamDeckConnection.value.on("willDisappear", (inMessage) => {
-      let context = inMessage.context;
+    streamDeckConnection.value.on("willDisappear", (_inMessage: unknown) => {
+      const inMessage = _inMessage as StreamDeckEvent;
+      const context = inMessage.context!;
       delete actionSettings.value[context];
 
       // Retrieve the UUID from the message payload settings
-      const sonosSpeakerUUID = inMessage.payload.settings.uuid;
+      const sonosSpeakerUUID = inMessage.payload!.settings!.uuid as string;
 
       // Remove context from the speaker and set deleteIfLast to true
       const removed = sonosSpeakers.removeContext({
@@ -173,17 +195,18 @@ onMounted(async () => {
     });
 
     // add async refresh logic here based on actionSettings.value[context].hostAddress
-    streamDeckConnection.value.on("didReceiveSettings", (inMessage) => {
+    streamDeckConnection.value.on("didReceiveSettings", (_inMessage: unknown) => {
+      const inMessage = _inMessage as StreamDeckEvent;
       console.log(inMessage);
-      let context = inMessage.context;
+      const context = inMessage.context!;
       rotationAmount[context] = 0;
 
       actionSettings.value[context] = {
-        ...inMessage.payload.settings,
-        currentStateIndex: inMessage.payload.state || 0,
-      };
+        ...inMessage.payload!.settings,
+        currentStateIndex: inMessage.payload!.state || 0,
+      } as ActionSettings;
 
-      const sonosSpeakerUUID = inMessage.payload.settings.uuid;
+      const sonosSpeakerUUID = inMessage.payload!.settings!.uuid as string | undefined;
 
       if (sonosSpeakerUUID) {
         const currentSpeaker = sonosSpeakers.getSpeakerByContext({ context });
@@ -192,7 +215,8 @@ onMounted(async () => {
           // Do nothing since the speaker is already assigned to this context
         } else if (currentSpeaker.status === "SUCCESS" && currentSpeaker.UUID !== sonosSpeakerUUID) {
           const moved = sonosSpeakers.moveContext({
-            UUID: sonosSpeakerUUID,
+            currentUUID: currentSpeaker.UUID!,
+            futureUUID: sonosSpeakerUUID,
             context,
             deleteIfLast: true,
             createIfNotExists: true,
@@ -219,22 +243,23 @@ onMounted(async () => {
     });
 
     // Actions below
-    streamDeckConnection.value.on("dialRotate", (inMessage) => {
-      let context = inMessage.context;
+    streamDeckConnection.value.on("dialRotate", (_inMessage: unknown) => {
+      const inMessage = _inMessage as StreamDeckEvent;
+      const context = inMessage.context!;
 
-      let scaledTicks = inMessage.payload.ticks;
-      let tickBucketSizeMs = 300;
+      const scaledTicks = inMessage.payload!.ticks as number;
+      const tickBucketSizeMs = 300;
 
-      rotationAmount[context] += scaledTicks;
+      rotationAmount[context] = (rotationAmount[context] ?? 0) + scaledTicks;
 
       if (rotationTimeout[context]) return;
 
-      let serviceCall = () => {
+      const serviceCall = () => {
         callAction({
           inContext: context,
           inEvent: inMessage.event,
           inRotation: {
-            ticks: rotationAmount[context],
+            ticks: rotationAmount[context]!,
           },
         });
         rotationAmount[context] = 0;
@@ -248,47 +273,54 @@ onMounted(async () => {
       }
     });
 
-    streamDeckConnection.value.on("keyDown", (inMessage) => {
-      let context = inMessage.context;
+    streamDeckConnection.value.on("keyDown", (_inMessage: unknown) => {
+      const inMessage = _inMessage as StreamDeckEvent;
+      const context = inMessage.context!;
       callAction({ inContext: context, inEvent: inMessage.event });
     });
 
     // streamDeckConnection.value.on("keyUp", (inMessage) => {});
 
-    streamDeckConnection.value.on("dialDown", (inMessage) => {
-      let context = inMessage.context;
+    streamDeckConnection.value.on("dialDown", (_inMessage: unknown) => {
+      const inMessage = _inMessage as StreamDeckEvent;
+      const context = inMessage.context!;
 
       callAction({ inContext: context, inEvent: inMessage.event });
     });
 
     // streamDeckConnection.value.on("dialUp", (inMessage) => {});
 
-    streamDeckConnection.value.on("touchTap", (inMessage) => {
-      let context = inMessage.context;
+    streamDeckConnection.value.on("touchTap", (_inMessage: unknown) => {
+      const inMessage = _inMessage as StreamDeckEvent;
+      const context = inMessage.context!;
 
       callAction({ inContext: context, inEvent: inMessage.event });
     });
 
     setInterval(() => {
-      sonosSpeakers.getAllSpeakers().UUIDs.forEach(async (sonosSpeakerUUID) => {
+      sonosSpeakers.getAllSpeakers().UUIDs!.forEach(async (sonosSpeakerUUID) => {
         const speaker = sonosSpeakers.getSpeaker({ UUID: sonosSpeakerUUID });
         if (speaker.status === "ERROR") {
           console.error(`Failed to get speaker info for ${sonosSpeakerUUID}: ${speaker.message}`);
           return;
         }
-        const contexts = speaker.contexts;
+        const contexts = speaker.contexts!;
         if (
           speaker.operationalStatus !== SonosSpeakers.OPERATIONAL_STATUS.UPDATING &&
           speaker.operationalStatus !== SonosSpeakers.OPERATIONAL_STATUS.RATE_LIMITED &&
-          speaker.secondsLastChecked >= deviceCheckInterval.value
+          speaker.secondsLastChecked! >= deviceCheckInterval.value
         ) {
-          let hostAddress;
+          let hostAddress: string | null | undefined;
           if (sonosSpeakerUUID.startsWith("group:")) {
             const coordUUID = sonosSpeakerUUID.replace("group:", "");
-            const group = (globalSettings.value.groups || []).find((g) => g.coordinatorUUID === coordUUID);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const group = ((globalSettings.value.groups || []) as Array<Record<string, any>>).find(
+              (g) => g.coordinatorUUID === coordUUID,
+            );
             hostAddress = group ? group.coordinatorHost : null;
           } else {
-            hostAddress = globalSettings.value.devices[sonosSpeakerUUID]?.hostAddress;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            hostAddress = (globalSettings.value.devices as Record<string, any>)?.[sonosSpeakerUUID]?.hostAddress;
           }
           if (!hostAddress) {
             console.error(`No host address found for ${sonosSpeakerUUID}`);
@@ -307,19 +339,20 @@ onMounted(async () => {
                 deviceTimeoutDuration.value * 1000,
               ),
             );
-            const updatedSpeakerState = await Promise.race([sonosController.getDeviceInfo(), timeout]);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const updatedSpeakerState = (await Promise.race([sonosController.getDeviceInfo(), timeout])) as Record<string, any>;
             if (!updatedSpeakerState.timedOut) {
               clearTimeout(updatedSpeakerState.timedOut);
               sonosSpeakers.updateSpeakerState({
                 UUID: sonosSpeakerUUID,
-                state: updatedSpeakerState,
+                state: updatedSpeakerState as SpeakerState,
                 updateLastChecked: true,
               });
             }
           } catch (error) {
             console.log(`Failed to get device info for ${hostAddress}: ${error}`);
             contexts.forEach((context) => {
-              streamDeckConnection.value.showAlert({ context });
+              streamDeckConnection.value!.showAlert({ context });
             });
             sonosSpeakers.setOperationalStatus({
               UUID: sonosSpeakerUUID,
@@ -334,7 +367,7 @@ onMounted(async () => {
           contexts.forEach((context) => {
             refreshStateAndTitle({
               inContext: context,
-              inSonosSpeakerState: updatedSpeaker.state,
+              inSonosSpeakerState: updatedSpeaker.state as SpeakerState,
             });
           });
         }
@@ -343,8 +376,10 @@ onMounted(async () => {
 
     // Refresh group topology every 30 seconds
     setInterval(async () => {
-      const primaryDevice =
-        globalSettings.value.devices && Object.values(globalSettings.value.devices).find((d) => d.primary === true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const devices = globalSettings.value.devices as Record<string, any> | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const primaryDevice = devices && (Object.values(devices) as Array<Record<string, any>>).find((d) => d.primary === true);
       if (!primaryDevice) return;
 
       try {
@@ -353,10 +388,11 @@ onMounted(async () => {
         const timeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Timeout refreshing group topology")), deviceTimeoutDuration.value * 1000),
         );
-        const groups = await Promise.race([sonosController.getGroups(), timeout]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const groups = (await Promise.race([sonosController.getGroups(), timeout])) as Record<string, any>;
         if (groups && !groups.timedOut) {
           globalSettings.value.groups = groups;
-          streamDeckConnection.value.saveGlobalSettings({
+          streamDeckConnection.value!.saveGlobalSettings({
             payload: {
               ...globalSettings.value,
               groups,
@@ -370,14 +406,23 @@ onMounted(async () => {
   };
 });
 
-function callAction({ inContext, inEvent, inRotation = null }) {
-  const settings = actionSettings.value[inContext];
-  const actionName = settings.action.split(".").pop();
+function callAction({
+  inContext,
+  inEvent,
+  inRotation = null,
+}: {
+  inContext: string;
+  inEvent: string;
+  inRotation?: { ticks: number } | null;
+}): void {
+  const settings = actionSettings.value[inContext]!;
+  const actionName = settings.action.split(".").pop()!;
 
   Object.keys(actionFunctionMap).map((key) => {
     if (key === actionName) {
-      if (actionFunctionMap[key][inEvent]) {
-        actionFunctionMap[key][inEvent].forEach(async (actionFunction) => {
+      const eventActions = actionFunctionMap[key]![inEvent] as ActionFunction[] | undefined;
+      if (eventActions) {
+        eventActions.forEach(async (actionFunction) => {
           const sonosSpeakerResult = sonosSpeakers.getSpeakerByContext({
             context: inContext,
           });
@@ -385,7 +430,7 @@ function callAction({ inContext, inEvent, inRotation = null }) {
             console.error(`Failed to get speaker for context ${inContext}: ${sonosSpeakerResult.message}`);
             return;
           }
-          const sonosSpeakerUUID = sonosSpeakerResult.UUID;
+          const sonosSpeakerUUID = sonosSpeakerResult.UUID!;
           const speaker = sonosSpeakers.getSpeaker({ UUID: sonosSpeakerUUID });
           if (speaker.status !== "SUCCESS") {
             console.error(`Failed to get speaker info for ${sonosSpeakerUUID}: ${speaker.message}`);
@@ -398,19 +443,19 @@ function callAction({ inContext, inEvent, inRotation = null }) {
           const actionResult = await actionFunction({
             inContext,
             inActionSettings: settings,
-            inSonosSpeakerState: speaker.state,
+            inSonosSpeakerState: speaker.state as SpeakerState,
             inRotation,
             deviceTimeoutDuration: deviceTimeoutDuration.value,
           });
           if (actionResult.status === "SUCCESS") {
             sonosSpeakers.updateSpeakerState({
               UUID: sonosSpeakerUUID,
-              state: actionResult.updatedSonosSpeakerState,
+              state: actionResult.updatedSonosSpeakerState!,
             });
           } else {
-            const contexts = speaker.contexts;
+            const contexts = speaker.contexts!;
             contexts.forEach((context) => {
-              streamDeckConnection.value.showAlert({ context });
+              streamDeckConnection.value!.showAlert({ context });
             });
             sonosSpeakers.setOperationalStatus({
               UUID: sonosSpeakerUUID,
@@ -423,10 +468,16 @@ function callAction({ inContext, inEvent, inRotation = null }) {
   });
 }
 
-async function refreshStateAndTitle({ inContext, inSonosSpeakerState }) {
-  const settings = actionSettings.value[inContext];
-  const actionName = settings.action.split(".").pop();
-  const controller = settings.controller.toLowerCase();
+async function refreshStateAndTitle({
+  inContext,
+  inSonosSpeakerState,
+}: {
+  inContext: string;
+  inSonosSpeakerState: SpeakerState;
+}): Promise<void> {
+  const settings = actionSettings.value[inContext]!;
+  const actionName = settings.action.split(".").pop()!;
+  const controller = settings.controller.toLowerCase() as "keypad" | "encoder";
   const currentStateIndex = settings.currentStateIndex;
 
   // Check if state is explicitly null first
@@ -435,16 +486,19 @@ async function refreshStateAndTitle({ inContext, inSonosSpeakerState }) {
   }
 
   if (actionFunctionMap[actionName]?.state) {
-    const stateHandler = actionFunctionMap[actionName].state[controller] || actionFunctionMap[actionName].state.default;
+    const stateHandler = (actionFunctionMap[actionName].state[controller] || actionFunctionMap[actionName].state.default) as
+      | StateFunction
+      | null
+      | undefined;
     if (stateHandler) {
       const stateResult = await stateHandler({
         inContext,
         inActionSettings: settings,
         inSonosSpeakerState,
-        StreamDeckConnection: streamDeckConnection.value,
+        StreamDeckConnection: streamDeckConnection.value!,
       });
       if (stateResult.status === "SUCCESS" && stateResult.futureStateIndex !== currentStateIndex) {
-        actionSettings.value[inContext].currentStateIndex = stateResult.futureStateIndex;
+        actionSettings.value[inContext]!.currentStateIndex = stateResult.futureStateIndex!;
       } else if (stateResult.status !== "SUCCESS") {
         console.error(`[Refresh State and Title] Failed to update state for context ${inContext}: ${stateResult.message}`);
       }

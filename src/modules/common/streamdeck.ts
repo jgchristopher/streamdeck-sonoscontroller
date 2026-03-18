@@ -1,14 +1,34 @@
 import { EventEmitter } from "@elgato/streamdeck";
+import type { StreamDeckActionInfo } from "@/types/streamdeck";
+
+interface StreamDeckMessage {
+  event: string;
+  context?: string;
+  action?: string;
+  device?: string;
+  payload?: Record<string, unknown>;
+}
+
+type StreamDeckEventMap = {
+  connected: [actionInfo: StreamDeckActionInfo];
+  globalsettings: [settings: unknown];
+  [key: string]: unknown[];
+};
 
 export class StreamDeck {
-  constructor(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inActionInfo) {
-    let actionInfo = JSON.parse(inActionInfo);
+  propertyInspectorUUID: string;
+  events: EventEmitter<StreamDeckEventMap>;
+  streamDeckWebsocket: WebSocket;
+  on: (evt: string, fn: (...args: unknown[]) => void) => void;
+
+  constructor(inPort: string, inPropertyInspectorUUID: string, inRegisterEvent: string, _inInfo: string, inActionInfo: string) {
+    const actionInfo: StreamDeckActionInfo = JSON.parse(inActionInfo);
     this.propertyInspectorUUID = inPropertyInspectorUUID;
     this.events = new EventEmitter();
 
     this.streamDeckWebsocket = new WebSocket("ws://localhost:" + inPort);
     this.streamDeckWebsocket.onopen = () => {
-      let json = {
+      const json = {
         event: inRegisterEvent,
         uuid: inPropertyInspectorUUID,
       };
@@ -16,13 +36,13 @@ export class StreamDeck {
       this.events.emit("connected", actionInfo);
     };
 
-    this.on = (evt, fn) => this.events.on(evt, fn);
+    this.on = (evt: string, fn: (...args: unknown[]) => void) => this.events.on(evt, fn);
 
-    this.streamDeckWebsocket.onmessage = (evt) => {
-      let incomingEvent = JSON.parse(evt.data);
+    this.streamDeckWebsocket.onmessage = (evt: MessageEvent) => {
+      const incomingEvent: StreamDeckMessage = JSON.parse(evt.data);
       switch (incomingEvent.event) {
         case "didReceiveGlobalSettings":
-          this.events.emit("globalsettings", incomingEvent.payload["settings"]);
+          this.events.emit("globalsettings", incomingEvent.payload?.["settings"]);
           break;
         case "deviceDidConnect":
           this.events.emit("deviceDidConnect", incomingEvent);
@@ -82,34 +102,39 @@ export class StreamDeck {
     };
   }
 
-  requestGlobalSettings() {
-    let getGlobalSettingsMessage = {
+  requestGlobalSettings(): void {
+    const getGlobalSettingsMessage = {
       event: "getGlobalSettings",
       context: this.propertyInspectorUUID,
     };
     this.streamDeckWebsocket.send(JSON.stringify(getGlobalSettingsMessage));
   }
 
-  saveGlobalSettings({ payload }) {
-    let message = {
+  saveGlobalSettings({ payload }: { payload: Record<string, unknown> }): void {
+    const message = {
       event: "setGlobalSettings",
       context: this.propertyInspectorUUID,
       payload: payload,
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  getSettings({ context = this.propertyInspectorUUID } = {}) {
-    let message = {
+  getSettings({ context = this.propertyInspectorUUID } = {}): void {
+    const message = {
       event: "getSettings",
       context: context,
     };
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  saveSettings({ actionSettings, context = this.propertyInspectorUUID }) {
-    let message = {
+  saveSettings({
+    actionSettings,
+    context = this.propertyInspectorUUID,
+  }: {
+    actionSettings: Record<string, unknown>;
+    context?: string;
+  }): void {
+    const message = {
       event: "setSettings",
       context: context,
       payload: actionSettings,
@@ -117,8 +142,8 @@ export class StreamDeck {
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  setTitle({ context, title }) {
-    let message = {
+  setTitle({ context, title }: { context: string; title: string | null }): void {
+    const message = {
       event: "setTitle",
       context: context,
       payload: {
@@ -129,8 +154,8 @@ export class StreamDeck {
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  logMessage({ messageText }) {
-    let message = {
+  logMessage({ messageText }: { messageText: string }): void {
+    const message = {
       event: "logMessage",
       payload: {
         message: messageText,
@@ -139,8 +164,8 @@ export class StreamDeck {
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  setImage({ context, image, state = 0 }) {
-    let message = {
+  setImage({ context, image, state = 0 }: { context: string; image: string | null; state?: number }): void {
+    const message = {
       event: "setImage",
       context: context,
       payload: {
@@ -149,78 +174,70 @@ export class StreamDeck {
         state,
       },
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  setFeedback({ context, payload }) {
-    let message = {
+  setFeedback({ context, payload }: { context: string; payload: Record<string, unknown> }): void {
+    const message = {
       event: "setFeedback",
       context: context,
       payload: payload,
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  setFeedbackLayout({ context, payload }) {
-    let message = {
+  setFeedbackLayout({ context, payload }: { context: string; payload: Record<string, unknown> }): void {
+    const message = {
       event: "setFeedbackLayout",
       context: context,
       payload: payload,
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  showAlert({ context }) {
-    let message = {
+  showAlert({ context }: { context: string }): void {
+    const message = {
       event: "showAlert",
       context: context,
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  showOk({ context }) {
-    let message = {
+  showOk({ context }: { context: string }): void {
+    const message = {
       event: "showOk",
       context: context,
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  setState({ context, stateIndex }) {
-    let message = {
+  setState({ context, stateIndex }: { context: string; stateIndex: number }): void {
+    const message = {
       event: "setState",
       context: context,
       payload: {
         state: stateIndex,
       },
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  sendToPlugin({ context, payload }) {
-    let message = {
+  sendToPlugin({ context, payload }: { context: string; payload: Record<string, unknown> }): void {
+    const message = {
       action: this.propertyInspectorUUID,
       event: "sendToPlugin",
       context: context,
       payload,
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 
-  sendToPropertyInspector({ context, payload }) {
-    let message = {
+  sendToPropertyInspector({ context, payload }: { context: string; payload: Record<string, unknown> }): void {
+    const message = {
       event: "sendToPropertyInspector",
       context: context,
       payload,
     };
-
     this.streamDeckWebsocket.send(JSON.stringify(message));
   }
 }
