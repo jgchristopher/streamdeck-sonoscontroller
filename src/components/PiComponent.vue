@@ -206,7 +206,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import AccordeonComponent from "@/components/accordeon/BootstrapAccordeon.vue";
 import AccordeonItem from "@/components/accordeon/BootstrapAccordeonItem.vue";
 import { SonosController } from "@/modules/common/sonosController";
@@ -214,41 +214,63 @@ import { OPERATIONAL_STATUS } from "@/modules/plugin/SonosSpeakers";
 import { SonosSpeaker } from "@/modules/pi/SonosSpeaker";
 import { StreamDeck } from "@/modules/common/streamdeck";
 import { computed, onMounted, ref } from "vue";
+import type { Ref } from "vue";
 import { Buffer } from "buffer";
 import SonosSelection from "@/components/SonosSelection.vue";
 import manifest from "@manifest";
+import type { ManifestAction, ManifestState } from "@manifest";
+import type { SonosGroup } from "@/types/sonos";
+import type { OperationalStatusValue } from "@/types/speakers";
 
-const streamDeckConnection = ref(null);
-const sonosError = ref("");
-const primaryDeviceAddress = ref("");
-const deviceCheckInterval = ref(10);
-const deviceTimeoutDuration = ref(5);
-const sonosConnectionState = ref(OPERATIONAL_STATUS.DISCONNECTED);
-const availableSonosSpeakers = ref([]);
-const actionSettings = ref({});
+interface SonosFavoriteOption {
+  title: string;
+  metadata: string;
+  value: string;
+  albumArtURI: string | null;
+}
+
+interface LabelValue {
+  value: string;
+  label: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type GlobalSettings = Record<string, any>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ActionSettings = Record<string, any>;
+
+const streamDeckConnection: Ref<StreamDeck | null> = ref(null);
+const sonosError: Ref<string> = ref("");
+const primaryDeviceAddress: Ref<string> = ref("");
+const deviceCheckInterval: Ref<number> = ref(10);
+const deviceTimeoutDuration: Ref<number> = ref(5);
+const sonosConnectionState: Ref<OperationalStatusValue> = ref(OPERATIONAL_STATUS.DISCONNECTED);
+const availableSonosSpeakers: Ref<SonosSpeaker[]> = ref([]);
+const actionSettings: Ref<ActionSettings> = ref({});
 
 // Stores selected sonos speaker UUID
-const sonosSpeaker = ref("");
+const sonosSpeaker: Ref<string> = ref("");
 
 // Stores streamdeck action UUID and controller type
-const action = ref("");
-const actionName = ref("");
-const controllerType = ref("");
-const manifestAction = ref({});
+const action: Ref<string> = ref("");
+const actionName: Ref<string> = ref("");
+const controllerType: Ref<string> = ref("");
+const manifestAction: Ref<ManifestAction | undefined> = ref(undefined);
 
-const isPlaySonosFavorite = ref(false);
-const availableSonosFavorites = ref([]);
-const sonosFavorite = ref("");
+const isPlaySonosFavorite: Ref<boolean> = ref(false);
+const availableSonosFavorites: Ref<SonosFavoriteOption[]> = ref([]);
+const sonosFavorite: Ref<string> = ref("");
 
-const isTogglePlayMode = ref(false);
-const selectedPlayModes = ref([]);
-const availablePlayModes = ref([]);
+const isTogglePlayMode: Ref<boolean> = ref(false);
+const selectedPlayModes: Ref<string[]> = ref([]);
+const availablePlayModes: Ref<LabelValue[]> = ref([]);
 
-const isToggleInputSource = ref(false);
-const availableInputSources = ref([]);
-const selectedInputSources = ref([]);
+const isToggleInputSource: Ref<boolean> = ref(false);
+const availableInputSources: Ref<LabelValue[]> = ref([]);
+const selectedInputSources: Ref<string[]> = ref([]);
 
-const displayStateBasedTitleFor = [
+const displayStateBasedTitleFor: string[] = [
   "toggle-play-mode",
   "toggle-input-source",
   "toggle-play-pause",
@@ -258,38 +280,45 @@ const displayStateBasedTitleFor = [
   "play-previous-track",
   "play-next-track",
 ];
-const displayStateBasedTitle = ref(false);
+const displayStateBasedTitle: Ref<boolean> = ref(false);
 
-const displayAlbumArtFor = ["toggle-play-pause", "play-sonos-favorite", "currently-playing"];
-const displayAlbumArt = ref(false);
+const displayAlbumArtFor: string[] = ["toggle-play-pause", "play-sonos-favorite", "currently-playing"];
+const displayAlbumArt: Ref<boolean> = ref(false);
 
-const displayMarqueeTitleFor = ["play-sonos-favorite", "currently-playing"];
-const displayMarqueeTitle = ref(false);
+const displayMarqueeTitleFor: string[] = ["play-sonos-favorite", "currently-playing"];
+const displayMarqueeTitle: Ref<boolean> = ref(false);
 
-const displayMarqueeAlbumTitleFor = ["toggle-play-pause", "currently-playing"];
-const displayMarqueeAlbumTitle = ref(false);
+const displayMarqueeAlbumTitleFor: string[] = ["toggle-play-pause", "currently-playing"];
+const displayMarqueeAlbumTitle: Ref<boolean> = ref(false);
 
-const groupVolumeEnabled = ref(true);
+const groupVolumeEnabled: Ref<boolean> = ref(true);
 
-const isVolumeAction = ref(false);
-const adjustVolumeIncrement = ref(10);
+const isVolumeAction: Ref<boolean> = ref(false);
+const adjustVolumeIncrement: Ref<number> = ref(10);
 
-const isEncoderAudioEqualizer = ref(false);
-const availableEqualizerTargets = ref(["volume", "bass", "treble"]);
-const encoderAudioEqualizerTarget = ref("");
+const isEncoderAudioEqualizer: Ref<boolean> = ref(false);
+const availableEqualizerTargets: Ref<string[]> = ref(["volume", "bass", "treble"]);
+const encoderAudioEqualizerTarget: Ref<string> = ref("");
 
 onMounted(() => {
-  window.connectElgatoStreamDeckSocket = (exPort, exPropertyInspectorUUID, exRegisterEvent, exInfo, exActionInfo) => {
+  window.connectElgatoStreamDeckSocket = (
+    exPort: string,
+    exPropertyInspectorUUID: string,
+    exRegisterEvent: string,
+    exInfo: string,
+    exActionInfo?: string,
+  ) => {
+    if (!exActionInfo) return;
     streamDeckConnection.value = new StreamDeck(exPort, exPropertyInspectorUUID, exRegisterEvent, exInfo, exActionInfo);
     const exActionInfoObject = JSON.parse(exActionInfo);
     actionName.value = exActionInfoObject.action.split(".").pop();
-    manifestAction.value = manifest.Actions.find((manifestAction) => manifestAction.UUID === exActionInfoObject.action);
+    manifestAction.value = manifest.Actions.find((ma: ManifestAction) => ma.UUID === exActionInfoObject.action);
 
     action.value = exActionInfoObject.action;
     controllerType.value = exActionInfoObject.payload.controller;
 
     streamDeckConnection.value.on("connected", () => {
-      streamDeckConnection.value.requestGlobalSettings();
+      streamDeckConnection.value!.requestGlobalSettings();
     });
 
     // this is called when the user clicks the save button external from the pi
@@ -301,12 +330,15 @@ onMounted(() => {
     //   console.log(inMessage);
     // });
 
-    streamDeckConnection.value.on("globalsettings", (inGlobalSettings) => {
-      if (inGlobalSettings) {
-        if (inGlobalSettings.devices) {
-          deviceCheckInterval.value = inGlobalSettings.deviceCheckInterval;
-          deviceTimeoutDuration.value = inGlobalSettings.deviceTimeoutDuration;
-          const primaryDevice = Object.values(inGlobalSettings.devices).find((device) => device.primary === true);
+    streamDeckConnection.value.on("globalsettings", (inGlobalSettings: unknown) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const globalSettings = inGlobalSettings as GlobalSettings;
+      if (globalSettings) {
+        if (globalSettings.devices) {
+          deviceCheckInterval.value = globalSettings.deviceCheckInterval;
+          deviceTimeoutDuration.value = globalSettings.deviceTimeoutDuration;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const primaryDevice = Object.values(globalSettings.devices).find((device: any) => device.primary === true) as any;
           if (primaryDevice) {
             primaryDeviceAddress.value = primaryDevice.hostAddress;
             actionSettings.value = JSON.parse(exActionInfo).payload.settings;
@@ -315,9 +347,9 @@ onMounted(() => {
             switch (actionName.value) {
               case "toggle-play-mode":
                 isTogglePlayMode.value = true;
-                availablePlayModes.value = manifestAction.value.States.map((state) => ({
+                availablePlayModes.value = manifestAction.value!.States.map((state: ManifestState) => ({
                   value: state.Name.toUpperCase(),
-                  label: state.Name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+                  label: state.Name.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
                 }));
                 if (actionSettings.value?.selectedPlayModes) {
                   selectedPlayModes.value = actionSettings.value.selectedPlayModes;
@@ -327,9 +359,9 @@ onMounted(() => {
                 break;
               case "toggle-input-source":
                 isToggleInputSource.value = true;
-                availableInputSources.value = manifestAction.value.States.map((state) => ({
+                availableInputSources.value = manifestAction.value!.States.map((state: ManifestState) => ({
                   value: state.Name.toUpperCase(),
-                  label: state.Name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+                  label: state.Name.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
                 }));
                 if (actionSettings.value?.selectedInputSources) {
                   selectedInputSources.value = actionSettings.value.selectedInputSources;
@@ -352,7 +384,8 @@ onMounted(() => {
                 break;
               case "play-sonos-favorite":
                 isPlaySonosFavorite.value = true;
-                availableSonosFavorites.value = inGlobalSettings.favorites.map((favorite) => ({
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                availableSonosFavorites.value = globalSettings.favorites.map((favorite: any) => ({
                   title: favorite.title,
                   metadata: Buffer.from(favorite.metadata, "utf-8").toString("base64"),
                   value: favorite.uri,
@@ -361,7 +394,7 @@ onMounted(() => {
                 if (actionSettings.value?.selectedSonosFavorite) {
                   sonosFavorite.value = actionSettings.value.selectedSonosFavorite.uri;
                 } else {
-                  sonosFavorite.value = availableSonosFavorites.value[0].value;
+                  sonosFavorite.value = availableSonosFavorites.value[0]?.value ?? "";
                 }
                 break;
             }
@@ -372,8 +405,8 @@ onMounted(() => {
             displayMarqueeAlbumTitle.value = actionSettings.value?.displayMarqueeAlbumTitle ?? false;
 
             refreshAvailableSonosSpeakers({
-              inDevices: inGlobalSettings.devices,
-              inGroups: inGlobalSettings.groups || [],
+              inDevices: globalSettings.devices,
+              inGroups: globalSettings.groups || [],
               inActionSettings: actionSettings.value,
               triggerSaveSettings: !actionSettings.value || Object.keys(actionSettings.value).length === 0,
             });
@@ -396,10 +429,22 @@ const selectedSonosSpeaker = computed(() =>
   availableSonosSpeakers.value.find((speaker) => speaker.uuid === sonosSpeaker.value),
 );
 
-function refreshAvailableSonosSpeakers({ inDevices, inGroups = [], inActionSettings = {}, triggerSaveSettings = true }) {
+function refreshAvailableSonosSpeakers({
+  inDevices,
+  inGroups = [],
+  inActionSettings = {},
+  triggerSaveSettings = true,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inDevices: Record<string, any>;
+  inGroups?: SonosGroup[];
+  inActionSettings?: ActionSettings;
+  triggerSaveSettings?: boolean;
+}): void {
   const speakers = Object.values(inDevices)
     .map(
-      (device) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (device: any) =>
         new SonosSpeaker({
           zoneName: device.zoneName,
           hostAddress: device.hostAddress,
@@ -437,22 +482,23 @@ function refreshAvailableSonosSpeakers({ inDevices, inGroups = [], inActionSetti
       saveSettings();
     }
   } else {
-    const primaryDevice = Object.values(inDevices).find((device) => device.primary === true).uuid;
-    sonosSpeaker.value = primaryDevice;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const primaryDevice = Object.values(inDevices).find((device: any) => device.primary === true) as any;
+    sonosSpeaker.value = primaryDevice.uuid;
     if (triggerSaveSettings) {
       saveSettings();
     }
   }
 }
 
-async function saveGlobalSettings() {
+async function saveGlobalSettings(): Promise<void> {
   sonosError.value = "";
   sonosConnectionState.value = OPERATIONAL_STATUS.CONNECTING;
   const $SONOS = new SonosController();
   $SONOS.connect(primaryDeviceAddress.value);
 
   try {
-    const timeout = (sonosAction) =>
+    const timeout = (sonosAction: string): Promise<never> =>
       new Promise((_, reject) =>
         setTimeout(
           () => reject(new Error(`Timeout while ${sonosAction} after ${deviceTimeoutDuration.value} seconds`)),
@@ -460,24 +506,15 @@ async function saveGlobalSettings() {
         ),
       );
     const getDevices = await Promise.race([$SONOS.getDevices({ setAsPrimary: true }), timeout("getting devices")]);
-    if (!getDevices.timedOut) {
-      clearTimeout(getDevices.timedOut);
-    }
     const getFavorites = await Promise.race([$SONOS.getFavorites(), timeout("getting favorites")]);
-    if (!getFavorites.timedOut) {
-      clearTimeout(getFavorites.timedOut);
-    }
     const getGroups = await Promise.race([$SONOS.getGroups(), timeout("getting groups")]);
-    if (!getGroups.timedOut) {
-      clearTimeout(getGroups.timedOut);
-    }
     sonosConnectionState.value = OPERATIONAL_STATUS.CONNECTED;
     refreshAvailableSonosSpeakers({
       inDevices: getDevices.list,
-      inGroups: getGroups,
+      inGroups: getGroups as SonosGroup[],
       inActionSettings: actionSettings.value,
     });
-    streamDeckConnection.value.saveGlobalSettings({
+    streamDeckConnection.value!.saveGlobalSettings({
       payload: {
         devices: getDevices.list,
         groups: getGroups,
@@ -488,22 +525,22 @@ async function saveGlobalSettings() {
     });
   } catch (error) {
     sonosConnectionState.value = OPERATIONAL_STATUS.DISCONNECTED;
-    console.error("Failed to get devices:", error.message);
-    sonosError.value = `Failed to get devices: ${error.message}`;
+    console.error("Failed to get devices:", (error as Error).message);
+    sonosError.value = `Failed to get devices: ${(error as Error).message}`;
   }
 }
 
-function saveSettings() {
+function saveSettings(): void {
   actionSettings.value = {
     action: action.value,
-    states: manifestAction.value.States,
+    states: manifestAction.value?.States,
     controller: controllerType.value,
-    uuid: selectedSonosSpeaker.value.uuid,
-    title: selectedSonosSpeaker.value.title,
-    hostAddress: selectedSonosSpeaker.value.hostAddress,
-    zoneName: selectedSonosSpeaker.value.zoneName,
-    targetType: selectedSonosSpeaker.value.targetType || "speaker",
-    groupVolumeEnabled: selectedSonosSpeaker.value.targetType === "group" ? groupVolumeEnabled.value : false,
+    uuid: selectedSonosSpeaker.value!.uuid,
+    title: selectedSonosSpeaker.value!.title,
+    hostAddress: selectedSonosSpeaker.value!.hostAddress,
+    zoneName: selectedSonosSpeaker.value!.zoneName,
+    targetType: selectedSonosSpeaker.value!.targetType || "speaker",
+    groupVolumeEnabled: selectedSonosSpeaker.value!.targetType === "group" ? groupVolumeEnabled.value : false,
     selectedPlayModes: selectedPlayModes.value || [],
     selectedInputSources: selectedInputSources.value || [],
     adjustVolumeIncrement: adjustVolumeIncrement.value,
@@ -521,7 +558,7 @@ function saveSettings() {
         }
       : null,
   };
-  streamDeckConnection.value.saveSettings({
+  streamDeckConnection.value!.saveSettings({
     actionSettings: actionSettings.value,
   });
 }

@@ -12,7 +12,8 @@
     "build_dev": "vite build --sourcemap inline --minify false",
     "build_dev_incr": "node -e \"const fs=require('fs');const m=JSON.parse(fs.readFileSync('public/manifest.json'));m.Version=m.Version.split('.').map((n,i)=>i===3?parseInt(n)+1:n).join('.');fs.writeFileSync('public/manifest.json',JSON.stringify(m,null,2));\" &&vite build --sourcemap inline --minify false",
     "preview": "vite preview",
-    "lint": "eslint ./src --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint ./src --ext .vue,.ts,.tsx --fix --ignore-path .gitignore",
     "format": "prettier --print-width 128 --write ./src/",
     "format:check": "prettier --check --print-width 128 ./src/",
     "clean": "shx rm -rf ./xyz.jdotc.sonoscontroller.sdPlugin && shx rm -f ./xyz.jdotc.sonoscontroller.streamDeckPlugin"
@@ -37,16 +38,23 @@
     "@elgato/cli": "^1.0.1",
     "@modyfi/vite-plugin-yaml": "^1.1.0",
     "@rollup/plugin-json": "^6.1.0",
-    "@rushstack/eslint-patch": "^1.3.3",
+    "@types/bootstrap": "^5.2.10",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.5.0",
+    "@types/nunjucks": "^3.2.6",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
     "@vitejs/plugin-vue": "^4.3.4",
     "@vue/eslint-config-prettier": "^8.0.0",
-    "babel-eslint": "^10.1.0",
+    "@vue/tsconfig": "^0.9.0",
     "eslint": "^8.49.0",
     "eslint-plugin-vue": "^9.17.0",
     "prettier": "^3.0.3",
     "rollup": "^4.24.3",
     "sass": "^1.68.0",
     "shx": "^0.3.4",
-    "vite": "^4.4.9"
+    "typescript": "^5.9.3",
+    "vite": "^4.4.9",
+    "vue-tsc": "^3.2.6"
   }
 }
