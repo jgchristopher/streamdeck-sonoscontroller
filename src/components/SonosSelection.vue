@@ -1,6 +1,5 @@
 <template>
   <div>
-    <!-- <label class="form-label" for="sonosSpeaker">Sonos Speaker</label> -->
     <small class="text-muted d-block">Note: Devices marked with 🛰️ are satellites</small>
     <select
       size="5"
@@ -14,17 +13,30 @@
       :value="modelValue"
       class="form-select form-select-sm mb-1"
     >
-      <option
-        v-for="sonosSpeaker in filteredSonosSpeakers"
-        v-bind:key="sonosSpeaker"
-        :value="sonosSpeaker.uuid"
-        :title="sonosSpeaker?.title"
-        :hostAddress="sonosSpeaker?.hostAddress"
-        :zoneName="sonosSpeaker?.zoneName"
-      >
-        <!-- <option v-for="{ uuid, hostAddress, zoneName } in filteredSonosSpeakers" :key="uuid" v-bind="{ value: uuid, hostAddress, zoneName, title: uuid }"> -->
-        {{ sonosSpeaker.title }}
-      </option>
+      <optgroup v-if="filteredGroups.length > 0" label="Groups">
+        <option
+          v-for="sonosSpeaker in filteredGroups"
+          v-bind:key="sonosSpeaker.uuid"
+          :value="sonosSpeaker.uuid"
+          :title="sonosSpeaker?.title"
+          :hostAddress="sonosSpeaker?.hostAddress"
+          :zoneName="sonosSpeaker?.zoneName"
+        >
+          {{ sonosSpeaker.title }}
+        </option>
+      </optgroup>
+      <optgroup label="Speakers">
+        <option
+          v-for="sonosSpeaker in filteredSpeakers"
+          v-bind:key="sonosSpeaker.uuid"
+          :value="sonosSpeaker.uuid"
+          :title="sonosSpeaker?.title"
+          :hostAddress="sonosSpeaker?.hostAddress"
+          :zoneName="sonosSpeaker?.zoneName"
+        >
+          {{ sonosSpeaker.title }}
+        </option>
+      </optgroup>
     </select>
     <input
       type="text"
@@ -60,16 +72,19 @@ const emit = defineEmits(["update:modelValue", "selection-saved"]);
 
 const sonosSpeakerFilter = ref("");
 
-const filteredSonosSpeakers = computed(() => {
-  if (!sonosSpeakerFilter.value) {
-    return props.availableSonosSpeakers;
-  }
-
-  let filterLc = sonosSpeakerFilter.value.toLowerCase();
-  return props.availableSonosSpeakers.filter((sonosSpeaker) => {
-    let uuidMatches = sonosSpeaker.uuid.toLowerCase().indexOf(filterLc) !== -1;
-    let titleMatches = sonosSpeaker.title.toLowerCase().indexOf(filterLc) !== -1;
-    return uuidMatches || titleMatches;
+const applyFilter = (list) => {
+  if (!sonosSpeakerFilter.value) return list;
+  const filterLc = sonosSpeakerFilter.value.toLowerCase();
+  return list.filter((s) => {
+    return s.uuid.toLowerCase().indexOf(filterLc) !== -1 || s.title.toLowerCase().indexOf(filterLc) !== -1;
   });
+};
+
+const filteredGroups = computed(() => {
+  return applyFilter(props.availableSonosSpeakers.filter((s) => s.targetType === "group"));
+});
+
+const filteredSpeakers = computed(() => {
+  return applyFilter(props.availableSonosSpeakers.filter((s) => s.targetType !== "group"));
 });
 </script>

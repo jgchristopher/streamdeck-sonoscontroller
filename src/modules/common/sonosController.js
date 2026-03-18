@@ -53,6 +53,11 @@ export class SonosController {
     this.renderingControl = new SonosService(this, "RenderingControl", "MediaRenderer/RenderingControl");
     this.zoneGroupTopology = new SonosService(this, "ZoneGroupTopology");
     this.contentDirectory = new SonosService(this, "ContentDirectory", "MediaServer/ContentDirectory");
+    this.groupRenderingControl = new SonosService(
+      this,
+      "GroupRenderingControl",
+      "MediaRenderer/GroupRenderingControl",
+    );
   }
 
   connect(host, port = 1400) {
@@ -81,6 +86,68 @@ export class SonosController {
   async removeAllTracksFromQueue() {
     return this.avTransport.execute("RemoveAllTracksFromQueue");
   }
+  async getGroups() {
+    const zoneGroupState = await this.getZoneGroupState();
+    const jsonState = this.convertXmlToJson(zoneGroupState);
+    const groups = [];
+
+    const zoneGroups = jsonState?.ZoneGroups?.ZoneGroup || [];
+    for (const group of zoneGroups) {
+      const coordinatorUUID = group["@attributes"]?.Coordinator;
+      if (!coordinatorUUID) continue;
+
+      const members = Array.isArray(group.ZoneGroupMember)
+        ? group.ZoneGroupMember
+        : group.ZoneGroupMember
+          ? [group.ZoneGroupMember]
+          : [];
+
+      const visibleMembers = members.filter((m) => m["@attributes"]?.Invisible !== "1");
+      if (visibleMembers.length === 0) continue;
+
+      const extractHostPort = (member) => {
+        const locationUrl = member["@attributes"]?.Location;
+        const match = locationUrl?.match(/http:\/\/([\d.]+):(\d+)/);
+        return match ? { host: match[1], port: parseInt(match[2]) } : null;
+      };
+
+      const coordinator = visibleMembers.find((m) => m["@attributes"]?.UUID === coordinatorUUID);
+      const coordinatorLocation = coordinator ? extractHostPort(coordinator) : null;
+      if (!coordinatorLocation) continue;
+
+      const memberList = visibleMembers.map((m) => ({
+        uuid: m["@attributes"].UUID,
+        zoneName: m["@attributes"].ZoneName,
+        ...extractHostPort(m),
+      }));
+
+      const groupName = memberList.map((m) => m.zoneName).join(" + ");
+
+      groups.push({
+        coordinatorUUID,
+        coordinatorHost: coordinatorLocation.host,
+        coordinatorPort: coordinatorLocation.port,
+        name: groupName,
+        members: memberList,
+      });
+    }
+
+    return groups;
+  }
+
+  resolveGroupForUUID(groups, uuid) {
+    for (const group of groups) {
+      if (group.members.some((m) => m.uuid === uuid)) {
+        return group;
+      }
+    }
+    return null;
+  }
+
+  resolveGroupByCoordinatorUUID(groups, coordinatorUUID) {
+    return groups.find((g) => g.coordinatorUUID === coordinatorUUID) || null;
+  }
+
   async getDeviceLocationByUUID(uuid) {
     const zoneGroupState = await this.getZoneGroupState();
     const jsonState = this.convertXmlToJson(zoneGroupState);
@@ -240,6 +307,10 @@ export class SonosController {
     return this.renderingControl.execute("GetMute", { Channel: "Master" });
   }
 
+  async getGroupMute() {
+    return this.groupRenderingControl.execute("GetGroupMute");
+  }
+
   async getPositionInfo() {
     return this.avTransport.execute("GetPositionInfo");
   }
@@ -296,6 +367,12 @@ export class SonosController {
     });
   }
 
+  async setGroupMute(mute) {
+    return this.groupRenderingControl.execute("SetGroupMute", {
+      DesiredMute: mute ? "1" : "0",
+    });
+  }
+
   async getBass() {
     return this.renderingControl.execute("GetBass", { Channel: "Master" });
   }
@@ -325,10 +402,10 @@ export class SonosController {
     });
   }
 
-  async setRelativeVolume(relativeVolume) {
+  async setRelativeVolume(adjustment) {
     return this.renderingControl.execute("SetRelativeVolume", {
       Channel: "Master",
-      RelativeVolume: relativeVolume,
+      Adjustment: adjustment,
     });
   }
 

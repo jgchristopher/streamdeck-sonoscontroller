@@ -1,15 +1,13 @@
 {
-  "UUID": "com.r-teller.sonoscontroller",
+  "UUID": "xyz.jdotc.sonoscontroller",
   "Actions": [
     {
       "Icon": "images/actions/currently_playing",
       "Name": "Currently Playing",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Display the currently playing state of the selected speaker and action will manually refresh state",
-      "UUID": "com.r-teller.sonoscontroller.currently-playing",
-      "Controllers": [
-        "Keypad"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.currently-playing",
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -27,9 +25,7 @@
       "Name": "Toggle Mute",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Toggle mute state between muted and unmuted.",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -47,16 +43,14 @@
           "FontSize": 11
         }
       ],
-      "UUID": "com.r-teller.sonoscontroller.toggle-mute-unmute"
+      "UUID": "xyz.jdotc.sonoscontroller.toggle-mute-unmute"
     },
     {
       "Icon": "images/actions/paused",
       "Name": "Toggle Play/Pause",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Toggle play/pause state between playing and paused.",
-      "Controllers": [
-        "Keypad"
-      ],
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -80,17 +74,15 @@
           "FontSize": 11
         }
       ],
-      "UUID": "com.r-teller.sonoscontroller.toggle-play-pause"
+      "UUID": "xyz.jdotc.sonoscontroller.toggle-play-pause"
     },
     {
       "Icon": "images/actions/shuffle",
       "Name": "Toggle Play Mode",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Toggle play mode between normal, shuffle and repeat.",
-      "UUID": "com.r-teller.sonoscontroller.toggle-play-mode",
-      "Controllers": [
-        "Keypad"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.toggle-play-mode",
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -138,10 +130,8 @@
       "Name": "Toggle Input Source",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Toggle input source between line-in, aux and usb.",
-      "UUID": "com.r-teller.sonoscontroller.toggle-input-source",
-      "Controllers": [
-        "Keypad"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.toggle-input-source",
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -171,10 +161,8 @@
       "Name": "Play Next Track",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Skip to next track in queue",
-      "UUID": "com.r-teller.sonoscontroller.play-next-track",
-      "Controllers": [
-        "Keypad"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.play-next-track",
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -192,10 +180,8 @@
       "Name": "Play Previous Track",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Skip to previous track in queue",
-      "UUID": "com.r-teller.sonoscontroller.play-previous-track",
-      "Controllers": [
-        "Keypad"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.play-previous-track",
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -213,10 +199,8 @@
       "Name": "Volume Up",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Increase volume by 2",
-      "UUID": "com.r-teller.sonoscontroller.volume-up",
-      "Controllers": [
-        "Keypad"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.volume-up",
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -234,10 +218,8 @@
       "Name": "Volume Down",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Decrease volume by 2",
-      "UUID": "com.r-teller.sonoscontroller.volume-down",
-      "Controllers": [
-        "Keypad"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.volume-down",
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -255,10 +237,8 @@
       "Name": "Play Sonos Favorite",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Play Sonos favorite",
-      "UUID": "com.r-teller.sonoscontroller.play-sonos-favorite",
-      "Controllers": [
-        "Keypad"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.play-sonos-favorite",
+      "Controllers": ["Keypad"],
       "UserTitleEnabled": true,
       "DisableAutomaticStates": true,
       "DisableCaching": false,
@@ -276,10 +256,8 @@
       "Name": "Audio Equalizer",
       "PropertyInspectorPath": "pi.html",
       "Tooltip": "Adjust audio equalizer settings",
-      "UUID": "com.r-teller.sonoscontroller.encoder-audio-equalizer",
-      "Controllers": [
-        "Encoder"
-      ],
+      "UUID": "xyz.jdotc.sonoscontroller.encoder-audio-equalizer",
+      "Controllers": ["Encoder"],
       "UserTitleEnabled": false,
       "DisableAutomaticStates": true,
       "DisableCaching": true,
@@ -298,12 +276,12 @@
     }
   ],
   "SDKVersion": 2,
-  "Author": "Robert Teller",
+  "Author": "Robert Teller, John Christopher",
   "CodePath": "plugin.html",
   "Description": "Control Sonos devices using Stream Deck",
   "Name": "Sonos Controller",
   "Icon": "images/sonos",
-  "URL": "https://github.com/r-teller/streamdeck-sonoscontroller",
+  "URL": "https://github.com/jgchristopher/streamdeck-sonoscontroller",
   "Version": "99.99.99.33",
   "Category": "Sonos Controller",
   "CategoryIcon": "images/category",
@@ -325,3 +303,4 @@
     "Debug": "enabled"
   }
 }
+

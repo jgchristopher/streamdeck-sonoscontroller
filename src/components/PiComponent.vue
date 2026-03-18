@@ -16,6 +16,16 @@
       <div class="alert alert-light" v-if="selectedSonosSpeaker">
         <center>{{ selectedSonosSpeaker.title }}</center>
       </div>
+      <div class="form-check form-switch" v-if="selectedSonosSpeaker?.targetType === 'group'">
+        <input
+          id="chkGroupVolume"
+          v-model="groupVolumeEnabled"
+          class="form-check-input"
+          type="checkbox"
+          @change="saveSettings"
+        />
+        <label class="form-check-label" for="chkGroupVolume">Apply volume/mute to entire group</label>
+      </div>
 
       <div class="form-check form-switch" v-if="displayStateBasedTitleFor.includes(actionName)">
         <input
@@ -110,6 +120,22 @@
             {{ option.charAt(0).toUpperCase() + option.slice(1).toLowerCase() }}
           </option>
         </select>
+      </div>
+    </div>
+
+    <div v-if="sonosConnectionState === OPERATIONAL_STATUS.CONNECTED && isVolumeAction">
+      <h1>Volume Step</h1>
+      <div class="mb-3">
+        <small class="text-muted d-block">Amount to adjust per button press (1-50)</small>
+        <input
+          id="adjustVolumeIncrement"
+          v-model.number="adjustVolumeIncrement"
+          class="form-control form-control-sm"
+          type="number"
+          min="1"
+          max="50"
+          @change="saveSettings"
+        />
       </div>
     </div>
 
@@ -243,6 +269,11 @@ const displayMarqueeTitle = ref(false);
 const displayMarqueeAlbumTitleFor = ["toggle-play-pause", "currently-playing"];
 const displayMarqueeAlbumTitle = ref(false);
 
+const groupVolumeEnabled = ref(true);
+
+const isVolumeAction = ref(false);
+const adjustVolumeIncrement = ref(10);
+
 const isEncoderAudioEqualizer = ref(false);
 const availableEqualizerTargets = ref(["volume", "bass", "treble"]);
 const encoderAudioEqualizerTarget = ref("");
@@ -306,6 +337,11 @@ onMounted(() => {
                   selectedInputSources.value = availableInputSources.value.map((inputSource) => inputSource.value);
                 }
                 break;
+              case "volume-up":
+              case "volume-down":
+                isVolumeAction.value = true;
+                adjustVolumeIncrement.value = actionSettings.value?.adjustVolumeIncrement || 10;
+                break;
               case "encoder-audio-equalizer":
                 isEncoderAudioEqualizer.value = true;
                 if (actionSettings.value?.encoderAudioEqualizerTarget) {
@@ -337,6 +373,7 @@ onMounted(() => {
 
             refreshAvailableSonosSpeakers({
               inDevices: inGlobalSettings.devices,
+              inGroups: inGlobalSettings.groups || [],
               inActionSettings: actionSettings.value,
               triggerSaveSettings: !actionSettings.value || Object.keys(actionSettings.value).length === 0,
             });
@@ -359,8 +396,8 @@ const selectedSonosSpeaker = computed(() =>
   availableSonosSpeakers.value.find((speaker) => speaker.uuid === sonosSpeaker.value),
 );
 
-function refreshAvailableSonosSpeakers({ inDevices, inActionSettings = {}, triggerSaveSettings = true }) {
-  availableSonosSpeakers.value = Object.values(inDevices)
+function refreshAvailableSonosSpeakers({ inDevices, inGroups = [], inActionSettings = {}, triggerSaveSettings = true }) {
+  const speakers = Object.values(inDevices)
     .map(
       (device) =>
         new SonosSpeaker({
@@ -368,14 +405,34 @@ function refreshAvailableSonosSpeakers({ inDevices, inActionSettings = {}, trigg
           hostAddress: device.hostAddress,
           uuid: device.uuid,
           isSatellite: device.isSatellite,
+          targetType: "speaker",
         }),
     )
     .sort((a, b) =>
       a.title.toLowerCase() > b.title.toLowerCase() ? 1 : b.title.toLowerCase() > a.title.toLowerCase() ? -1 : 0,
     );
 
+  const groupEntries = inGroups
+    .filter((g) => g.members.length > 1)
+    .map(
+      (g) =>
+        new SonosSpeaker({
+          zoneName: g.name,
+          hostAddress: g.coordinatorHost,
+          uuid: `group:${g.coordinatorUUID}`,
+          targetType: "group",
+          memberCount: g.members.length,
+        }),
+    )
+    .sort((a, b) =>
+      a.title.toLowerCase() > b.title.toLowerCase() ? 1 : b.title.toLowerCase() > a.title.toLowerCase() ? -1 : 0,
+    );
+
+  availableSonosSpeakers.value = [...groupEntries, ...speakers];
+
   if (inActionSettings?.uuid) {
     sonosSpeaker.value = inActionSettings.uuid;
+    groupVolumeEnabled.value = inActionSettings.groupVolumeEnabled ?? true;
     if (triggerSaveSettings) {
       saveSettings();
     }
@@ -410,14 +467,20 @@ async function saveGlobalSettings() {
     if (!getFavorites.timedOut) {
       clearTimeout(getFavorites.timedOut);
     }
+    const getGroups = await Promise.race([$SONOS.getGroups(), timeout("getting groups")]);
+    if (!getGroups.timedOut) {
+      clearTimeout(getGroups.timedOut);
+    }
     sonosConnectionState.value = OPERATIONAL_STATUS.CONNECTED;
     refreshAvailableSonosSpeakers({
       inDevices: getDevices.list,
+      inGroups: getGroups,
       inActionSettings: actionSettings.value,
     });
     streamDeckConnection.value.saveGlobalSettings({
       payload: {
         devices: getDevices.list,
+        groups: getGroups,
         deviceCheckInterval: deviceCheckInterval.value,
         deviceTimeoutDuration: deviceTimeoutDuration.value,
         favorites: getFavorites.list,
@@ -439,8 +502,11 @@ function saveSettings() {
     title: selectedSonosSpeaker.value.title,
     hostAddress: selectedSonosSpeaker.value.hostAddress,
     zoneName: selectedSonosSpeaker.value.zoneName,
+    targetType: selectedSonosSpeaker.value.targetType || "speaker",
+    groupVolumeEnabled: selectedSonosSpeaker.value.targetType === "group" ? groupVolumeEnabled.value : false,
     selectedPlayModes: selectedPlayModes.value || [],
     selectedInputSources: selectedInputSources.value || [],
+    adjustVolumeIncrement: adjustVolumeIncrement.value,
     encoderAudioEqualizerTarget: encoderAudioEqualizerTarget.value,
     displayStateBasedTitle: displayStateBasedTitleFor.includes(actionName.value) ? displayStateBasedTitle.value : null,
     displayAlbumArt: displayAlbumArtFor.includes(actionName.value) ? displayAlbumArt.value : null,

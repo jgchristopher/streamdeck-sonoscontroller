@@ -123,6 +123,64 @@ const getInputSourceMappings = (uri) => {
 };
 
 /**
+ * Resolve the target host for an action, handling group routing.
+ * For group: prefixed UUIDs, returns the coordinator host and optionally
+ * all group member hosts for volume/mute fan-out.
+ * For individual speakers in a multi-member group, routes transport commands
+ * to the coordinator.
+ *
+ * @param {object} inActionSettings - The action settings containing uuid, hostAddress, targetType, groupVolumeEnabled
+ * @param {object} options - Options for resolution
+ * @param {string} options.commandType - "transport" or "volume"
+ * @returns {object} - { host, groupMembers (array of {host, port} if fan-out needed) }
+ */
+async function resolveActionTarget(inActionSettings, { commandType = "transport" } = {}) {
+  const uuid = inActionSettings.uuid;
+  const fallbackHost = inActionSettings.hostAddress;
+  console.log(`[resolveActionTarget] uuid=${uuid}, commandType=${commandType}, fallbackHost=${fallbackHost}, groupVolumeEnabled=${inActionSettings.groupVolumeEnabled}`);
+
+  if (uuid?.startsWith("group:")) {
+    const coordUUID = uuid.replace("group:", "");
+    try {
+      const sonosController = new SonosController();
+      sonosController.connect(fallbackHost);
+      const groups = await sonosController.getGroups();
+      console.log(`[resolveActionTarget] Found ${groups.length} groups`);
+      const group = sonosController.resolveGroupByCoordinatorUUID(groups, coordUUID);
+      if (group) {
+        console.log(`[resolveActionTarget] Resolved group: ${group.name}, members: ${group.members.length}`);
+        const result = { host: group.coordinatorHost };
+        if (commandType === "volume" && inActionSettings.groupVolumeEnabled) {
+          result.groupMembers = group.members.map((m) => ({ host: m.host, port: m.port }));
+          console.log(`[resolveActionTarget] Fan-out to ${result.groupMembers.length} members:`, result.groupMembers);
+        }
+        return result;
+      }
+      console.log(`[resolveActionTarget] No group found for coordinator UUID: ${coordUUID}`);
+    } catch (error) {
+      console.log(`[resolveActionTarget] Group lookup failed, falling back to stored host: ${error.message}`);
+    }
+    return { host: fallbackHost };
+  }
+
+  if (commandType === "transport") {
+    try {
+      const sonosController = new SonosController();
+      sonosController.connect(fallbackHost);
+      const groups = await sonosController.getGroups();
+      const group = sonosController.resolveGroupForUUID(groups, uuid);
+      if (group && group.members.length > 1) {
+        return { host: group.coordinatorHost };
+      }
+    } catch (error) {
+      console.log(`[resolveActionTarget] Group lookup failed, using direct host: ${error.message}`);
+    }
+  }
+
+  return { host: fallbackHost };
+}
+
+/**
  * Update state and title on Stream Deck
  * @param {string} inContext - The context of the action
  * @param {object} inActionSettings - The settings of the action
@@ -440,33 +498,81 @@ export async function toggle_mute_unmute_action({
     };
   }
   try {
-    const isMuted = inSonosSpeakerState?.muted ?? false;
+    const isMuted = inSonosSpeakerState?.muted || false;
     const newMuteState = !isMuted;
+    const currentVolume = inSonosSpeakerState?.audioEqualizer?.volume || 0;
 
-    const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    const isGroupTarget = inActionSettings.uuid?.startsWith("group:");
+    const target = await resolveActionTarget(inActionSettings, {
+      commandType: isGroupTarget ? "volume" : "transport",
+    });
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout toggling mute")), deviceTimeoutDuration * 1000),
     );
-    const setMuteState = await Promise.race([sonosController.setMute(newMuteState), timeout]);
 
-    if (!setMuteState.timedOut) {
-      const updatedSonosSpeakerState = {
-        ...inSonosSpeakerState,
-        muted: newMuteState,
-      };
-      clearTimeout(setMuteState.timedOut);
-      return {
-        status: "SUCCESS",
-        completed: true,
-        message: `${functionName} Sonos mute state toggled to: ${newMuteState}`,
-        updatedSonosSpeakerState,
-      };
+    // When muting, snapshot each member's volume before sending the mute command.
+    // When unmuting, restore volumes after unmuting.
+    let preMuteVolumes = null;
+    if (newMuteState && target.groupMembers && target.groupMembers.length > 0) {
+      preMuteVolumes = {};
+      const readPromises = target.groupMembers.map(async (member) => {
+        const mc = new SonosController();
+        mc.connect(member.host, member.port);
+        const vol = await mc.getVolume();
+        preMuteVolumes[`${member.host}:${member.port}`] = parseInt(vol.CurrentVolume);
+      });
+      await Promise.race([Promise.allSettled(readPromises), timeout]);
+    }
+
+    if (target.groupMembers && target.groupMembers.length > 0) {
+      const mutePromises = target.groupMembers.map((member) => {
+        const mc = new SonosController();
+        mc.connect(member.host, member.port);
+        return mc.setMute(newMuteState);
+      });
+      await Promise.race([Promise.allSettled(mutePromises), timeout]);
+
+      if (!newMuteState && inSonosSpeakerState.preMuteVolumes) {
+        const volumePromises = target.groupMembers.map((member) => {
+          const mc = new SonosController();
+          mc.connect(member.host, member.port);
+          const savedVolume = inSonosSpeakerState.preMuteVolumes[`${member.host}:${member.port}`];
+          if (savedVolume !== undefined) {
+            return mc.setVolume(savedVolume);
+          }
+          return Promise.resolve();
+        });
+        await Promise.race([Promise.allSettled(volumePromises), timeout]);
+      }
+    } else {
+      const sonosController = new SonosController();
+      sonosController.connect(target.host);
+      await Promise.race([sonosController.setMute(newMuteState), timeout]);
+
+      if (!newMuteState && inSonosSpeakerState.preMuteVolume !== undefined) {
+        await Promise.race([sonosController.setVolume(inSonosSpeakerState.preMuteVolume), timeout]);
+      }
+    }
+
+    const updatedSonosSpeakerState = {
+      ...inSonosSpeakerState,
+      muted: newMuteState,
+    };
+
+    if (newMuteState) {
+      updatedSonosSpeakerState.preMuteVolume = currentVolume;
+      if (preMuteVolumes) {
+        updatedSonosSpeakerState.preMuteVolumes = preMuteVolumes;
+      }
+    } else {
+      delete updatedSonosSpeakerState.preMuteVolume;
+      delete updatedSonosSpeakerState.preMuteVolumes;
     }
     return {
-      status: "ERROR",
-      completed: false,
-      message: `${functionName} Error toggling Sonos mute state for context ${inContext}: ${setMuteState.error.message}`,
+      status: "SUCCESS",
+      completed: true,
+      message: `${functionName} Sonos mute state toggled to: ${newMuteState}`,
+      updatedSonosSpeakerState,
     };
   } catch (error) {
     console.error(`${functionName} Error toggling Sonos mute state for context ${inContext}:`, error);
@@ -622,8 +728,9 @@ export async function toggle_play_pause_action({
   try {
     const isPlaying = (inSonosSpeakerState == null ? void 0 : inSonosSpeakerState.playbackState) === "PLAYING" ?? false;
 
+    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
     const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    sonosController.connect(target.host);
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout controlling playback")), deviceTimeoutDuration * 1000),
     );
@@ -690,8 +797,9 @@ export async function toggle_play_mode_action({ inContext, inActionSettings, inS
         ? inActionSettings.selectedPlayModes[0] // Start at beginning if current mode not found
         : inActionSettings.selectedPlayModes[(currentIndex + 1) % inActionSettings.selectedPlayModes.length];
 
+    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
     const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    sonosController.connect(target.host);
 
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout setting play mode")), deviceTimeoutDuration * 1000),
@@ -836,8 +944,9 @@ export async function toggle_input_source_action({
 
     const nextSource = inputSourceMappings.generateUri[selectNextSource];
 
+    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
     const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    sonosController.connect(target.host);
 
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout setting input source")), deviceTimeoutDuration * 1000),
@@ -974,8 +1083,9 @@ export async function play_next_track_action({ inContext, inActionSettings, inSo
     };
   }
   try {
+    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
     const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    sonosController.connect(target.host);
 
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout skipping to next track")), deviceTimeoutDuration * 1000),
@@ -1038,8 +1148,9 @@ export async function play_previous_track_action({
     };
   }
   try {
+    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
     const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    sonosController.connect(target.host);
 
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout skipping to previous track")), deviceTimeoutDuration * 1000),
@@ -1097,39 +1208,42 @@ export async function volume_up_action({ inContext, inActionSettings, inSonosSpe
     };
   }
   try {
-    const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    const target = await resolveActionTarget(inActionSettings, { commandType: "volume" });
 
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout increasing volume")), deviceTimeoutDuration * 1000),
     );
 
-    const updatedVolume = Math.min(
-      100,
-      parseInt(inSonosSpeakerState.audioEqualizer.volume) + (parseInt(inActionSettings.adjustVolumeIncrement) || 10),
-    );
+    const increment = parseInt(inActionSettings.adjustVolumeIncrement) || 10;
+    const currentVolume = parseInt(inSonosSpeakerState?.audioEqualizer?.volume) || 0;
 
-    const volumeUpState = await Promise.race([sonosController.setVolume(updatedVolume), timeout]);
-    if (!volumeUpState.timedOut) {
-      const updatedSonosSpeakerState = {
-        ...inSonosSpeakerState,
-        audioEqualizer: {
-          ...inSonosSpeakerState.audioEqualizer,
-          volume: updatedVolume,
-        },
-      };
-      clearTimeout(volumeUpState.timedOut);
-      return {
-        status: "SUCCESS",
-        completed: true,
-        message: `${functionName} Volume increased to: ${updatedVolume}`,
-        updatedSonosSpeakerState,
-      };
+    if (target.groupMembers) {
+      await Promise.allSettled(
+        target.groupMembers.map((member) => {
+          const sc = new SonosController();
+          sc.connect(member.host, member.port);
+          return Promise.race([sc.setRelativeVolume(increment), timeout]);
+        }),
+      );
+    } else {
+      const updatedVolume = Math.min(100, currentVolume + increment);
+      const sonosController = new SonosController();
+      sonosController.connect(target.host);
+      await Promise.race([sonosController.setVolume(updatedVolume), timeout]);
     }
+
+    const updatedSonosSpeakerState = {
+      ...inSonosSpeakerState,
+      audioEqualizer: {
+        ...(inSonosSpeakerState?.audioEqualizer || {}),
+        volume: Math.min(100, currentVolume + increment),
+      },
+    };
     return {
-      status: "ERROR",
-      completed: false,
-      message: `${functionName} Error increasing volume for context ${inContext}: ${volumeUpState.error.message}`,
+      status: "SUCCESS",
+      completed: true,
+      message: `${functionName} Volume increased by: ${increment}`,
+      updatedSonosSpeakerState,
     };
   } catch (error) {
     console.error(`${functionName} Error increasing volume for context ${inContext}:`, error);
@@ -1164,39 +1278,42 @@ export async function volume_down_action({ inContext, inActionSettings, inSonosS
     };
   }
   try {
-    const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    const target = await resolveActionTarget(inActionSettings, { commandType: "volume" });
 
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout decreasing volume")), deviceTimeoutDuration * 1000),
     );
 
-    const updatedVolume = Math.max(
-      0,
-      parseInt(inSonosSpeakerState.audioEqualizer.volume) - (parseInt(inActionSettings.adjustVolumeIncrement) || 10),
-    );
+    const increment = parseInt(inActionSettings.adjustVolumeIncrement) || 10;
+    const currentVolume = parseInt(inSonosSpeakerState?.audioEqualizer?.volume) || 0;
 
-    const volumeDownState = await Promise.race([sonosController.setVolume(updatedVolume), timeout]);
-    if (!volumeDownState.timedOut) {
-      const updatedSonosSpeakerState = {
-        ...inSonosSpeakerState,
-        audioEqualizer: {
-          ...inSonosSpeakerState.audioEqualizer,
-          volume: updatedVolume,
-        },
-      };
-      clearTimeout(volumeDownState.timedOut);
-      return {
-        status: "SUCCESS",
-        completed: true,
-        message: `${functionName} Volume decreased to: ${updatedVolume}`,
-        updatedSonosSpeakerState,
-      };
+    if (target.groupMembers) {
+      await Promise.allSettled(
+        target.groupMembers.map((member) => {
+          const sc = new SonosController();
+          sc.connect(member.host, member.port);
+          return Promise.race([sc.setRelativeVolume(-increment), timeout]);
+        }),
+      );
+    } else {
+      const updatedVolume = Math.max(0, currentVolume - increment);
+      const sonosController = new SonosController();
+      sonosController.connect(target.host);
+      await Promise.race([sonosController.setVolume(updatedVolume), timeout]);
     }
+
+    const updatedSonosSpeakerState = {
+      ...inSonosSpeakerState,
+      audioEqualizer: {
+        ...(inSonosSpeakerState?.audioEqualizer || {}),
+        volume: Math.max(0, currentVolume - increment),
+      },
+    };
     return {
-      status: "ERROR",
-      completed: false,
-      message: `${functionName} Error decreasing volume for context ${inContext}: ${volumeDownState.error.message}`,
+      status: "SUCCESS",
+      completed: true,
+      message: `${functionName} Volume decreased by: ${increment}`,
+      updatedSonosSpeakerState,
     };
   } catch (error) {
     console.error(`${functionName} Error decreasing volume for context ${inContext}:`, error);
@@ -1238,9 +1355,6 @@ export async function encoder_audio_equalizer_action({
     };
   }
   try {
-    const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
-
     const timeout = new Promise((_, reject) =>
       setTimeout(
         () => reject(new Error(`Timeout setting equalizer value for ${inActionSettings.encoderAudioEqualizerTarget}`)),
@@ -1250,6 +1364,8 @@ export async function encoder_audio_equalizer_action({
 
     switch (inActionSettings.encoderAudioEqualizerTarget) {
       case "BASS": {
+        const sonosController = new SonosController();
+        sonosController.connect(inActionSettings.hostAddress);
         const updatedBass = Math.min(
           10,
           Math.max(-10, parseInt(inSonosSpeakerState.audioEqualizer.bass) + parseInt(inRotation.ticks)),
@@ -1274,6 +1390,8 @@ export async function encoder_audio_equalizer_action({
         break;
       }
       case "TREBLE": {
+        const sonosController = new SonosController();
+        sonosController.connect(inActionSettings.hostAddress);
         const updatedTreble = Math.min(
           10,
           Math.max(-10, parseInt(inSonosSpeakerState.audioEqualizer.treble) + parseInt(inRotation.ticks)),
@@ -1298,28 +1416,39 @@ export async function encoder_audio_equalizer_action({
         break;
       }
       case "VOLUME": {
+        const target = await resolveActionTarget(inActionSettings, { commandType: "volume" });
         const updatedVolume = Math.min(
           100,
           Math.max(0, parseInt(inSonosSpeakerState.audioEqualizer.volume) + parseInt(inRotation.ticks)),
         );
-        const volumeState = await Promise.race([sonosController.setVolume(updatedVolume), timeout]);
-        if (!volumeState.timedOut) {
-          const updatedSonosSpeakerState = {
-            ...inSonosSpeakerState,
-            audioEqualizer: {
-              ...inSonosSpeakerState.audioEqualizer,
-              volume: updatedVolume,
-            },
-          };
-          clearTimeout(volumeState.timedOut);
-          return {
-            status: "SUCCESS",
-            completed: true,
-            message: `${functionName} Volume set to: ${updatedVolume}`,
-            updatedSonosSpeakerState,
-          };
+
+        if (target.groupMembers) {
+          await Promise.allSettled(
+            target.groupMembers.map((member) => {
+              const sc = new SonosController();
+              sc.connect(member.host, member.port);
+              return Promise.race([sc.setRelativeVolume(parseInt(inRotation.ticks)), timeout]);
+            }),
+          );
+        } else {
+          const sonosController = new SonosController();
+          sonosController.connect(target.host);
+          await Promise.race([sonosController.setVolume(updatedVolume), timeout]);
         }
-        break;
+
+        const updatedSonosSpeakerState = {
+          ...inSonosSpeakerState,
+          audioEqualizer: {
+            ...inSonosSpeakerState.audioEqualizer,
+            volume: updatedVolume,
+          },
+        };
+        return {
+          status: "SUCCESS",
+          completed: true,
+          message: `${functionName} Volume set to: ${updatedVolume}`,
+          updatedSonosSpeakerState,
+        };
       }
       default:
         return {
@@ -1482,8 +1611,9 @@ export async function play_sonos_favorite_action({
   }
 
   try {
+    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
     const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    sonosController.connect(target.host);
     const favorite = inActionSettings.selectedSonosFavorite;
 
     const timeout = (sonosAction) =>
@@ -1609,8 +1739,9 @@ export async function refresh_speaker_state_action({
     };
   }
   try {
+    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
     const sonosController = new SonosController();
-    sonosController.connect(inActionSettings.hostAddress);
+    sonosController.connect(target.host);
 
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout getting devices")), deviceTimeoutDuration * 1000),

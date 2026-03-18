@@ -45,6 +45,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./com.r-teller.sonoscontroller.streamDeckPlugin
-          asset_name: com.r-teller.sonoscontroller.streamDeckPlugin
+          asset_path: ./xyz.jdotc.sonoscontroller.streamDeckPlugin
+          asset_name: xyz.jdotc.sonoscontroller.streamDeckPlugin
           asset_content_type: application/zip
