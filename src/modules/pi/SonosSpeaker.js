@@ -3,11 +3,20 @@ export class SonosSpeaker {
   hostAddress;
   title;
   uuid;
+  targetType;
+  memberCount;
 
-  constructor({ zoneName, hostAddress, isSatellite = false, uuid }) {
+  constructor({ zoneName, hostAddress, isSatellite = false, uuid, targetType = "speaker", memberCount = 1 }) {
     this.zoneName = zoneName;
     this.hostAddress = hostAddress;
-    this.title = `${zoneName} (${hostAddress})${isSatellite ? " 🛰️" : ""}`;
     this.uuid = uuid;
+    this.targetType = targetType;
+    this.memberCount = memberCount;
+
+    if (targetType === "group" && memberCount > 1) {
+      this.title = `${zoneName} [Group: ${memberCount}]`;
+    } else {
+      this.title = `${zoneName} (${hostAddress})${isSatellite ? " 🛰️" : ""}`;
+    }
   }
 }

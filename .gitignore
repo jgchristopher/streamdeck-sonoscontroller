@@ -135,5 +135,9 @@ dist
 .aider*
 .archive*
 com.r-teller.sonos*
+xyz.jdotc.sonos*
 
 ./material-design-icons/*
+
+# macOS
+.DS_Store

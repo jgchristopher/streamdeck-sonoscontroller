@@ -282,7 +282,18 @@ onMounted(async () => {
           speaker.operationalStatus !== SonosSpeakers.OPERATIONAL_STATUS.RATE_LIMITED &&
           speaker.secondsLastChecked >= deviceCheckInterval.value
         ) {
-          const hostAddress = globalSettings.value.devices[sonosSpeakerUUID].hostAddress;
+          let hostAddress;
+          if (sonosSpeakerUUID.startsWith("group:")) {
+            const coordUUID = sonosSpeakerUUID.replace("group:", "");
+            const group = (globalSettings.value.groups || []).find((g) => g.coordinatorUUID === coordUUID);
+            hostAddress = group ? group.coordinatorHost : null;
+          } else {
+            hostAddress = globalSettings.value.devices[sonosSpeakerUUID]?.hostAddress;
+          }
+          if (!hostAddress) {
+            console.error(`No host address found for ${sonosSpeakerUUID}`);
+            return;
+          }
           try {
             const sonosController = new SonosController();
             sonosController.connect(hostAddress);
@@ -329,6 +340,33 @@ onMounted(async () => {
         }
       });
     }, 0.5 * 1000);
+
+    // Refresh group topology every 30 seconds
+    setInterval(async () => {
+      const primaryDevice =
+        globalSettings.value.devices && Object.values(globalSettings.value.devices).find((d) => d.primary === true);
+      if (!primaryDevice) return;
+
+      try {
+        const sonosController = new SonosController();
+        sonosController.connect(primaryDevice.hostAddress);
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout refreshing group topology")), deviceTimeoutDuration.value * 1000),
+        );
+        const groups = await Promise.race([sonosController.getGroups(), timeout]);
+        if (groups && !groups.timedOut) {
+          globalSettings.value.groups = groups;
+          streamDeckConnection.value.saveGlobalSettings({
+            payload: {
+              ...globalSettings.value,
+              groups,
+            },
+          });
+        }
+      } catch (error) {
+        console.log(`Failed to refresh group topology: ${error}`);
+      }
+    }, 30 * 1000);
   };
 });
 

@@ -20,11 +20,11 @@ export default defineConfig({
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "~bootstrap": path.resolve(__dirname, "node_modules/bootstrap"),
-      '@manifest': path.resolve(__dirname, './public/manifest.json')
+      "@manifest": path.resolve(__dirname, "./public/manifest.json"),
     },
   },
   build: {
-    outDir: 'com.r-teller.sonoscontroller.sdPlugin',
+    outDir: "xyz.jdotc.sonoscontroller.sdPlugin",
     rollupOptions: {
       input: {
         pi: "pi.html",
