@@ -53,11 +53,7 @@ export class SonosController {
     this.renderingControl = new SonosService(this, "RenderingControl", "MediaRenderer/RenderingControl");
     this.zoneGroupTopology = new SonosService(this, "ZoneGroupTopology");
     this.contentDirectory = new SonosService(this, "ContentDirectory", "MediaServer/ContentDirectory");
-    this.groupRenderingControl = new SonosService(
-      this,
-      "GroupRenderingControl",
-      "MediaRenderer/GroupRenderingControl",
-    );
+    this.groupRenderingControl = new SonosService(this, "GroupRenderingControl", "MediaRenderer/GroupRenderingControl");
   }
 
   connect(host, port = 1400) {

@@ -137,7 +137,9 @@ const getInputSourceMappings = (uri) => {
 async function resolveActionTarget(inActionSettings, { commandType = "transport" } = {}) {
   const uuid = inActionSettings.uuid;
   const fallbackHost = inActionSettings.hostAddress;
-  console.log(`[resolveActionTarget] uuid=${uuid}, commandType=${commandType}, fallbackHost=${fallbackHost}, groupVolumeEnabled=${inActionSettings.groupVolumeEnabled}`);
+  console.log(
+    `[resolveActionTarget] uuid=${uuid}, commandType=${commandType}, fallbackHost=${fallbackHost}, groupVolumeEnabled=${inActionSettings.groupVolumeEnabled}`,
+  );
 
   if (uuid?.startsWith("group:")) {
     const coordUUID = uuid.replace("group:", "");
