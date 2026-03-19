@@ -166,6 +166,7 @@
         >
           <div class="mb-3">
             <label class="form-label" for="discoverySubnet">Subnet to Scan</label>
+            <small class="form-text d-block mb-1">Common subnets: 192.168.1, 192.168.0, 192.168.2, 10.0.0, 10.0.1, 172.16.0</small>
             <div class="input-group input-group-sm mb-2">
               <input id="discoverySubnet" v-model="discoverySubnet" class="form-control" type="text" placeholder="192.168.1" />
               <button class="btn btn-outline-secondary" type="button" :disabled="!discoverySubnet || isDiscovering" @click="discoverDevices">

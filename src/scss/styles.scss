@@ -1,3 +1,435 @@
-$body-bg-dark: #2d2d2d;
+// Stream Deck PI dark theme styles (Bootstrap replacement)
 
-@import "bootstrap/scss/bootstrap";
+:root {
+  --bg: #2d2d2d;
+  --bg-input: #3a3a3a;
+  --bg-hover: #444;
+  --bg-accent: #4a4a4a;
+  --text: #e0e0e0;
+  --text-muted: #999;
+  --border: #555;
+  --primary: #0d6efd;
+  --primary-hover: #0b5ed7;
+  --danger: #dc3545;
+  --warning: #ffc107;
+  --warning-bg: rgba(255, 193, 7, 0.15);
+  --danger-bg: rgba(220, 53, 69, 0.15);
+  --light-bg: rgba(255, 255, 255, 0.08);
+  --radius: 4px;
+  --transition: 0.15s ease;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+}
+
+h1 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+small {
+  font-size: 11px;
+}
+
+// Layout utilities
+.container-fluid {
+  padding: 8px 12px;
+}
+
+.clearfix::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.float-end {
+  float: right;
+}
+
+.d-flex {
+  display: flex;
+}
+
+.d-block {
+  display: block;
+}
+
+.flex-column {
+  flex-direction: column;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.mb-1 {
+  margin-bottom: 4px;
+}
+
+.mb-2 {
+  margin-bottom: 8px;
+}
+
+.mb-3 {
+  margin-bottom: 12px;
+}
+
+// Form controls
+.form-label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.form-text {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color var(--transition);
+
+  &:focus {
+    border-color: var(--primary);
+  }
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+}
+
+.form-control-sm {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.form-select {
+  display: block;
+  width: 100%;
+  padding: 6px 24px 6px 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-input) url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23999' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e")
+    no-repeat right 6px center / 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  appearance: none;
+  outline: none;
+
+  &:focus {
+    border-color: var(--primary);
+  }
+
+  option,
+  optgroup {
+    background: var(--bg-input);
+    color: var(--text);
+  }
+}
+
+.form-select-sm {
+  padding: 4px 24px 4px 6px;
+  font-size: 12px;
+}
+
+// Checkbox switch
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 36px;
+  height: 20px;
+  background: var(--bg-accent);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background var(--transition);
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: transform var(--transition), background var(--transition);
+  }
+
+  &:checked {
+    background: var(--primary);
+    border-color: var(--primary);
+
+    &::after {
+      transform: translateX(16px);
+      background: #fff;
+    }
+  }
+}
+
+.form-check-label {
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+// Input group
+.input-group {
+  display: flex;
+  gap: 0;
+
+  .form-control {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    flex: 1;
+  }
+
+  .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+}
+
+.input-group-sm .form-control {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+// Buttons
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: var(--primary-hover);
+  }
+}
+
+.btn-outline-secondary {
+  background: transparent;
+  border-color: var(--border);
+
+  &:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+}
+
+// Alerts
+.alert {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.alert-light {
+  background: var(--light-bg);
+  border: 1px solid var(--border);
+}
+
+.alert-warning {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+  color: var(--warning);
+}
+
+.alert-danger {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  color: #f88;
+}
+
+.alert-dismissible {
+  padding-right: 32px;
+}
+
+.btn-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 0;
+
+  &::before {
+    content: "\00d7";
+    font-size: 16px;
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+// Spinner
+.spinner-border {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.spinner-border-sm {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Accordion
+.accordion {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.accordion-item + .accordion-item {
+  border-top: 1px solid var(--border);
+}
+
+.accordion-header {
+  margin: 0;
+}
+
+.accordion-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg-input);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition);
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+
+  &::after {
+    content: "";
+    margin-left: auto;
+    width: 12px;
+    height: 12px;
+    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23999' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e")
+      no-repeat center / contain;
+    transition: transform var(--transition);
+  }
+
+  &.collapsed::after {
+    transform: rotate(-90deg);
+  }
+}
+
+.accordion-collapse {
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.accordion-body {
+  padding: 8px 12px;
+}
+
+// Utility overrides for padding
+.py-1 {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.px-2 {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.p-2 {
+  padding: 8px;
+}
+
+center {
+  text-align: center;
+}

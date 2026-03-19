@@ -20,7 +20,7 @@ npm run package        # Create distributable .streamDeckPlugin file
 
 No test framework is configured. Validation is done through `npm run validate` and manual testing.
 
-When rebuilding the plugin for installation, always use `npm run package` (not `npx streamdeck pack` directly). This produces the `.streamDeckPlugin` file.
+Always run `npm run package` after `npm run build` or `npm run build_dev`. This produces the `.streamDeckPlugin` file needed for installation. Use `npm run package` directly (not `npx streamdeck pack`).
 
 ## Architecture
 

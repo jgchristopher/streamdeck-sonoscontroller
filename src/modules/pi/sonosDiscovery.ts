@@ -23,13 +23,11 @@ async function probeSonosDevice(ip: string): Promise<string | null> {
   const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`http://${ip}:1400/status/zp`, {
+    await fetch(`http://${ip}:1400/status/zp`, {
       signal: controller.signal,
+      mode: "no-cors",
     });
-    if (response.ok) {
-      return ip;
-    }
-    return null;
+    return ip;
   } catch {
     return null;
   } finally {

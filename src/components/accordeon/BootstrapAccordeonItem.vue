@@ -1,24 +1,19 @@
 <template>
   <div class="accordion-item">
-    <h2 class="accordion-header" :id="itemId">
+    <h2 class="accordion-header">
       <button
         class="accordion-button"
-        :class="{ collapsed: !forceExpanded }"
+        :class="{ collapsed: !isOpen }"
         type="button"
-        data-bs-toggle="collapse"
-        :data-bs-target="'#collapse' + itemId"
-        :aria-expanded="forceExpanded ? 'true' : 'false'"
-        :aria-controls="'collapse' + itemId"
+        @click="toggle"
       >
         {{ title }}
       </button>
     </h2>
     <div
-      :id="'collapse' + itemId"
+      ref="bodyRef"
       class="accordion-collapse"
-      :class="{ show: forceExpanded, collapse: !forceExpanded }"
-      :aria-labelledby="itemId"
-      :data-bs-parent="'#' + accordeonId"
+      :style="{ maxHeight: isOpen ? scrollHeight : '0px' }"
     >
       <div class="accordion-body">
         <slot></slot>
@@ -28,7 +23,9 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(
+import { ref, watch, onMounted, nextTick } from "vue";
+
+const props = withDefaults(
   defineProps<{
     accordeonId: string;
     itemId: string;
@@ -39,4 +36,33 @@ withDefaults(
     forceExpanded: false,
   },
 );
+
+const isOpen = ref(props.forceExpanded);
+const bodyRef = ref<HTMLElement | null>(null);
+const scrollHeight = ref("0px");
+
+function measureHeight() {
+  if (bodyRef.value) {
+    scrollHeight.value = bodyRef.value.scrollHeight + "px";
+  }
+}
+
+function toggle() {
+  isOpen.value = !isOpen.value;
+  measureHeight();
+}
+
+watch(
+  () => props.forceExpanded,
+  async (val) => {
+    isOpen.value = val;
+    await nextTick();
+    measureHeight();
+  },
+);
+
+onMounted(async () => {
+  await nextTick();
+  measureHeight();
+});
 </script>
