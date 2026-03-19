@@ -1,6 +1,6 @@
 <template>
   <div>
-    <small class="text-muted d-block">Note: Devices marked with 🛰️ are satellites</small>
+    <small v-if="showSatelliteSpeakers" class="text-muted d-block">Note: Devices marked with 🛰️ are satellites</small>
     <select
       size="5"
       id="sonosSpeaker"
@@ -53,6 +53,7 @@ import type { SonosSpeaker } from "@/modules/pi/SonosSpeaker";
 const props = defineProps<{
   modelValue: string;
   availableSonosSpeakers: SonosSpeaker[];
+  showSatelliteSpeakers: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -75,6 +76,8 @@ const filteredGroups = computed(() => {
 });
 
 const filteredSpeakers = computed(() => {
-  return applyFilter(props.availableSonosSpeakers.filter((s) => s.targetType !== "group"));
+  return applyFilter(
+    props.availableSonosSpeakers.filter((s) => s.targetType !== "group" && (props.showSatelliteSpeakers || !s.isSatellite)),
+  );
 });
 </script>
