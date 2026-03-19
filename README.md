@@ -1,5 +1,9 @@
 # StreamDeck Sonos Controller
 
+!> [!WARNING]
+
+> Currently I am actively using and testing the `Toggle Mute`, `Volume Up`, and `Volume Down` functionality only.
+
 ## Overview
 
 The StreamDeck Sonos Controller plugin allows you to manage your Sonos devices seamlessly from a single StreamDeck interface. This plugin has been refactored to enhance functionality and user experience, building upon the original work by [GenericMale](https://github.com/GenericMale/streamdeck-sonos/).
@@ -13,9 +17,10 @@ The StreamDeck Sonos Controller plugin allows you to manage your Sonos devices s
 
 ## Installation
 
-### Manual installation    
-* Download the latest plugin release [here](https://github.com/r-teller/streamdeck-sonoscontroller/releases)
-* Open the downloaded .streamDeckPlugin file. It will be automatically installed into your Stream-Deck application
+### Manual installation
+
+- Download the latest plugin release [here](https://github.com/r-teller/streamdeck-sonoscontroller/releases)
+- Open the downloaded .streamDeckPlugin file. It will be automatically installed into your Stream-Deck application
 
 ### Initial Setup
 

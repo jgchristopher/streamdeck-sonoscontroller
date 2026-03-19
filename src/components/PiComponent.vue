@@ -4,7 +4,7 @@
       <h1>Sonos Speakers</h1>
 
       <AccordeonComponent id="presses" class="mb-2">
-        <AccordeonItem accordeon-id="presses" item-id="availableSonosSpeakers" title="Available Sonos Speakers">
+        <AccordeonItem title="Available Sonos Speakers">
           <SonosSelection
             class="mb-3"
             :available-sonos-speakers="availableSonosSpeakers"
@@ -14,7 +14,7 @@
         </AccordeonItem>
       </AccordeonComponent>
       <div class="alert alert-light" v-if="selectedSonosSpeaker">
-        <center>{{ selectedSonosSpeaker.title }}</center>
+        <div class="text-center">{{ selectedSonosSpeaker.title }}</div>
       </div>
       <div class="form-check form-switch" v-if="selectedSonosSpeaker?.targetType === 'group'">
         <input
@@ -158,13 +158,29 @@
     <div class="clearfix mb-3">
       <h1>Global Settings</h1>
       <AccordeonComponent id="globalSettings" class="mb-2">
-        <AccordeonItem
-          accordeon-id="globalSettings"
-          item-id="globalSettings"
-          title="Global Settings"
-          :force-expanded="sonosConnectionState !== OPERATIONAL_STATUS.CONNECTED"
-        >
+        <AccordeonItem title="Global Settings" :force-expanded="sonosConnectionState !== OPERATIONAL_STATUS.CONNECTED">
           <div class="mb-3">
+            <label class="form-label" for="discoverySubnet">Subnet to Scan</label>
+            <small class="form-text d-block mb-1"
+              >Common subnets: 192.168.1, 192.168.0, 192.168.2, 10.0.0, 10.0.1, 172.16.0</small
+            >
+            <div class="input-group input-group-sm mb-2">
+              <input id="discoverySubnet" v-model="discoverySubnet" class="form-control" type="text" placeholder="192.168.1" />
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                :disabled="!discoverySubnet || isDiscovering"
+                @click="discoverDevices"
+              >
+                <span v-if="isDiscovering" aria-hidden="true" class="spinner-border spinner-border-sm" role="status"></span>
+                <span>{{ isDiscovering ? "Scanning..." : "Discover" }}</span>
+              </button>
+            </div>
+            <div v-if="discoveryError" class="alert alert-warning alert-dismissible py-1 px-2 mb-2" role="alert">
+              <small>{{ discoveryError }}</small>
+              <button class="btn-close p-2" type="button" @click="discoveryError = ''"></button>
+            </div>
+
             <label class="form-label" for="primaryDeviceAddress">Primary Device Address (Discovery)</label>
             <small class="text-muted d-block">Note: This device is used to discover all other devices on the network</small>
             <input id="primaryDeviceAddress" v-model="primaryDeviceAddress" class="form-control form-control-sm" type="text" />
@@ -212,6 +228,7 @@ import AccordeonItem from "@/components/accordeon/BootstrapAccordeonItem.vue";
 import { SonosController } from "@/modules/common/sonosController";
 import { OPERATIONAL_STATUS } from "@/modules/plugin/SonosSpeakers";
 import { SonosSpeaker } from "@/modules/pi/SonosSpeaker";
+import { discoverSonosDevice } from "@/modules/pi/sonosDiscovery";
 import { StreamDeck } from "@/modules/common/streamdeck";
 import { computed, onMounted, ref } from "vue";
 import type { Ref } from "vue";
@@ -243,6 +260,9 @@ type ActionSettings = Record<string, any>;
 const streamDeckConnection: Ref<StreamDeck | null> = ref(null);
 const sonosError: Ref<string> = ref("");
 const primaryDeviceAddress: Ref<string> = ref("");
+const discoverySubnet: Ref<string> = ref("192.168.1");
+const isDiscovering: Ref<boolean> = ref(false);
+const discoveryError: Ref<string> = ref("");
 const deviceCheckInterval: Ref<number> = ref(10);
 const deviceTimeoutDuration: Ref<number> = ref(5);
 const sonosConnectionState: Ref<OperationalStatusValue> = ref(OPERATIONAL_STATUS.DISCONNECTED);
@@ -488,6 +508,23 @@ function refreshAvailableSonosSpeakers({
     if (triggerSaveSettings) {
       saveSettings();
     }
+  }
+}
+
+async function discoverDevices(): Promise<void> {
+  discoveryError.value = "";
+  isDiscovering.value = true;
+  try {
+    const found = await discoverSonosDevice(discoverySubnet.value);
+    if (found) {
+      primaryDeviceAddress.value = found;
+    } else {
+      discoveryError.value = `No Sonos devices found on ${discoverySubnet.value}.x`;
+    }
+  } catch (error) {
+    discoveryError.value = `Discovery failed: ${(error as Error).message}`;
+  } finally {
+    isDiscovering.value = false;
   }
 }
 
