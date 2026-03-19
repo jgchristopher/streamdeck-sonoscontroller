@@ -137,7 +137,8 @@ small {
   padding: 6px 24px 6px 8px;
   font-size: 13px;
   color: var(--text);
-  background: var(--bg-input) url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23999' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e")
+  background: var(--bg-input)
+    url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23999' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e")
     no-repeat right 6px center / 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -189,7 +190,9 @@ small {
     height: 14px;
     background: var(--text-muted);
     border-radius: 50%;
-    transition: transform var(--transition), background var(--transition);
+    transition:
+      transform var(--transition),
+      background var(--transition);
   }
 
   &:checked {
@@ -430,6 +433,6 @@ small {
   padding: 8px;
 }
 
-center {
+.text-center {
   text-align: center;
 }

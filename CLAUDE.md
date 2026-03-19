@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Stream Deck plugin for controlling Sonos speakers. Built with Vue 3 and Vite, packaged as an Elgato Stream Deck plugin. Pure JavaScript (no TypeScript).
+Stream Deck plugin for controlling Sonos speakers. Built with Vue 3, TypeScript, and Vite, packaged as an Elgato Stream Deck plugin.
 
 ## Commands
 
@@ -26,9 +26,9 @@ Always run `npm run package` after `npm run build` or `npm run build_dev`. This 
 
 This is a two-process Stream Deck plugin:
 
-**Plugin process** (`plugin.html` -> `src/plugin/main.js` -> `PluginComponent.vue`): Runs in the background. Manages WebSocket connection to Stream Deck hardware, polls Sonos devices, dispatches actions on button presses/dial turns.
+**Plugin process** (`plugin.html` -> `src/plugin/main.ts` -> `PluginComponent.vue`): Runs in the background. Manages WebSocket connection to Stream Deck hardware, polls Sonos devices, dispatches actions on button presses/dial turns.
 
-**Property Inspector process** (`pi.html` -> `src/pi/main.js` -> `PiComponent.vue`): Configuration UI shown when a user selects a button in the Stream Deck app. Handles speaker discovery, favorite selection, and per-action settings.
+**Property Inspector process** (`pi.html` -> `src/pi/main.ts` -> `PiComponent.vue`): Configuration UI shown when a user selects a button in the Stream Deck app. Handles speaker discovery, favorite selection, and per-action settings.
 
 ### Data flow
 
@@ -38,10 +38,10 @@ Stream Deck Hardware -> Plugin (WebSocket) -> Action handler -> SonosController 
 
 ### Key modules
 
-- `src/modules/actions/sonosController.js` - All 11 action implementations (toggle mute, play/pause, play modes, volume, favorites, equalizer, etc.). Each action has handlers for different controller types (keypad, encoder).
-- `src/modules/plugin/SonosSpeakers.js` - Reactive speaker state manager using Vue `reactive()`. Tracks operational status, rate limiting, and per-button contexts.
-- `src/modules/common/sonosController.js` - Wraps the `sonos` npm package with UPnP calls for playback, volume, favorites, zone groups.
-- `src/modules/common/streamdeck.js` - WebSocket wrapper for Stream Deck communication.
+- `src/modules/actions/sonosController.ts` - All 11 action implementations (toggle mute, play/pause, play modes, volume, favorites, equalizer, etc.). Each action has handlers for different controller types (keypad, encoder).
+- `src/modules/plugin/SonosSpeakers.ts` - Reactive speaker state manager using Vue `reactive()`. Tracks operational status, rate limiting, and per-button contexts.
+- `src/modules/common/sonosController.ts` - Wraps the `sonos` npm package with UPnP calls for playback, volume, favorites, zone groups.
+- `src/modules/common/streamdeck.ts` - WebSocket wrapper for Stream Deck communication.
 
 ### Build output
 
@@ -50,7 +50,7 @@ Vite builds both entry points into `xyz.jdotc.sonoscontroller.sdPlugin/`. The pl
 ### Patterns
 
 - Speaker state uses Vue `reactive()` as a store pattern (not Vuex/Pinia)
-- Worker-based timers (`src/modules/common/timers.js`) to avoid plugin sleep issues
+- Worker-based timers (`src/modules/common/timers.ts`) to avoid plugin sleep issues
 - Rate limiting on Sonos polling (max 3 updates per 10-second window)
 - Base64 buffer encoding for Sonos favorite metadata
 - SVG icon generation via snapsvg-cjs
