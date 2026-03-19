@@ -1,106 +1,135 @@
 # StreamDeck Sonos Controller
 
-!> [!WARNING]
-
-> Currently I am actively using and testing the `Toggle Mute`, `Volume Up`, and `Volume Down` functionality only.
-
 ## Overview
 
-The StreamDeck Sonos Controller plugin allows you to manage your Sonos devices seamlessly from a single StreamDeck interface. This plugin has been refactored to enhance functionality and user experience, building upon the original work by [GenericMale](https://github.com/GenericMale/streamdeck-sonos/).
+Control Sonos speakers from your Elgato Stream Deck. Supports keys and encoder dials. Built on the original work by [GenericMale](https://github.com/GenericMale/streamdeck-sonos/).
 
 ## Features
 
-- **Manage Multiple Devices**: Control multiple Sonos devices from a single StreamDeck.
-- **Encoder Dials**: Adjust Bass, Treble, and Volume using encoder dials for precise control.
-- **Improved Interval Polling**: Enhanced performance with better polling intervals for device status.
-- **Marquee-Based Titles**: Support for marquee titles to display dynamic information.
+- Control multiple Sonos speakers and groups from a single Stream Deck
+- Currently Playing display with album art
+- Group volume and mute support
+- Subnet-based device discovery
+- Encoder dial control for Volume, Bass, and Treble
+- Marquee titles for track and album names
+- Configurable volume step, polling interval, and timeout durations
 
 ## Installation
 
-### Manual installation
+Download the latest plugin release [here](https://github.com/jgchristopher/streamdeck-sonoscontroller/releases). Open the downloaded `.streamDeckPlugin` file and it will install automatically.
 
-- Download the latest plugin release [here](https://github.com/r-teller/streamdeck-sonoscontroller/releases)
-- Open the downloaded .streamDeckPlugin file. It will be automatically installed into your Stream-Deck application
-
-### Initial Setup
+## Initial Setup
 
 ![Initial Setup](./doc/initial_setup.png)
 
-During initial setup, you must provide a "Discovery" device IP address. This is the first node that will be queried by the plugin, allowing it to discover adjacent nodes and list them as available speakers to manage.
+1. Drag any Sonos Controller action onto your Stream Deck
+2. In the Property Inspector, expand **Global Settings**
+3. Enter your network subnet (e.g., `192.168.1`) and click **Discover**, or type a known Sonos device IP directly into **Primary Device Address**
+4. Click **Save and Connect**
 
-- **Default Discovery Timeout**: 5 seconds
-- **Default Action Timeout**: 10 seconds
+The plugin queries that device's zone topology to find all speakers and groups on your network.
 
-### Selecting a Sonos Speaker
+UPnP must be enabled in the Sonos app for discovery to work: **Settings > System > Network > UPnP**.
+
+## Configuring Actions
 
 ![Select Sonos Speaker](./doc/select_sonos_speaker.png)
 
-By default, the initial speaker discovered is set as the default for new actions added. You can change this setting as needed.
+Each button gets its own speaker assignment. The speaker selector shows both individual speakers and groups in an accordion layout.
 
-### Toggle Play Modes
+- Groups display as `Speaker Name [Group: N]` where N is the member count
+- Satellite speakers (surround channels in a 5.1 setup) are hidden by default. Enable **Show Satellite Speakers** in Global Settings to display them with a satellite icon
+- A filter field lets you search by name or Sonos Speaker ID
+- When targeting a group, the **Apply volume/mute to entire group** toggle controls whether commands affect the full group or just the coordinator speaker (enabled by default)
 
-![Toggle Play Modes](./doc/toggle_play_modes.png)
+### Display Options
 
-Some keys support multiple actions in a toggle format, working through the list of enabled actions from top to bottom. If certain actions are not supported or desired for your device, you can uncheck any item that you do not wish to apply.
+Different actions support different display options:
+
+| Option | Available On |
+|--------|-------------|
+| State Based Title | Toggle Mute, Toggle Play/Pause, Toggle Play Mode, Toggle Input Source, Volume Up, Volume Down, Play Next Track, Play Previous Track |
+| Display Marquee Title | Play Sonos Favorite, Currently Playing |
+| Display Marquee Album Title | Toggle Play/Pause, Currently Playing |
+| Display Album Art | Toggle Play/Pause, Play Sonos Favorite, Currently Playing |
+
+### Global Settings
+
+- **Device Check Interval**: How often the plugin polls speaker status (default: 10 seconds)
+- **Device Timeout Duration**: Timeout for device commands (default: 5 seconds)
+- **Show Satellite Speakers**: Show satellite speakers (surround channels) in the speaker selector (default: off)
 
 ## Supported Actions
 
-The StreamDeck Sonos Controller supports the following actions:
+### Currently Playing
 
-1. **Toggle Mute**
+Displays the current track, album art, and playback state. Pressing the key triggers a manual status refresh. Keypad only.
 
-   - Toggles the mute state between muted and unmuted, allowing you to quickly silence or restore sound.
+### Toggle Mute
 
-2. **Toggle Play/Pause**
+Toggles mute state between muted and unmuted.
 
-   - Switches between playing and paused states, enabling you to control playback effortlessly.
+### Toggle Play/Pause
 
-3. **Toggle Play Mode**
+Switches between playing, paused, and stopped states.
 
-   - Changes the play mode among the following options:
-     - **Normal**: Plays tracks in the order they appear in the playlist.
-     - **Shuffle_NoRepeat**: Plays tracks in a random order without repeating any track until all have been played.
-     - **Shuffle_Repeat_One**: Plays the current track in a loop while shuffling the rest.
-     - **Shuffle**: Plays tracks in a random order, allowing repeats.
-     - **Repeat_One**: Repeats the current track indefinitely.
-     - **Repeat_All**: Repeats the entire playlist indefinitely, ensuring continuous playback.
+### Toggle Play Mode
 
-4. **Toggle Input Source**
+Cycles through enabled play modes:
 
-   - Switches between different input sources, such as Sonos Queue, TV Input, and Line-In, for versatile audio management.
+- **Normal**: Sequential playback
+- **Shuffle_NoRepeat**: Random order, no repeats
+- **Shuffle_Repeat_One**: Loops current track, shuffles the rest
+- **Shuffle**: Random order with repeats
+- **Repeat_One**: Loops current track
+- **Repeat_All**: Loops entire playlist
 
-5. **Play Next Track**
+![Toggle Play Modes](./doc/toggle_play_modes.png)
 
-   - Skips to the next track in the queue, ensuring continuous playback of your playlist.
+You can uncheck any mode you do not want in the rotation.
 
-6. **Play Previous Track**
+### Toggle Input Source
 
-   - Returns to the previous track in the queue, allowing you to replay your favorite songs.
+Switches between Sonos Queue, TV Input, and Line-In.
 
-7. **Volume Up**
+### Play Next Track
 
-   - Increases the volume by a set increment, enhancing your listening experience.
+Skips to the next track in the queue.
 
-8. **Volume Down**
+### Play Previous Track
 
-   - Decreases the volume by a set increment, providing control over audio levels.
+Returns to the previous track in the queue.
 
-9. **Play Sonos Favorite**
+### Volume Up / Volume Down
 
-   - Plays a designated Sonos favorite, giving you quick access to your preferred music.
+Adjusts volume by a configurable step size (default: 10, range: 1 to 50).
 
-10. **Audio Equalizer**
+### Play Sonos Favorite
 
-    - Adjusts audio equalizer settings to customize sound quality. It supports adjustments for:
+![Select Sonos Favorite](./doc/select_sonos_favorite.png)
 
-      - **Volume**: Control the overall loudness.
-      - **Treble**: Adjust the higher frequencies for clarity.
-      - **Bass**: Modify the lower frequencies for depth and richness.
+Plays a designated Sonos favorite. Supports album art display.
+
+### Audio Equalizer
+
+Encoder-only action. Adjust Volume, Bass, and Treble using a Stream Deck encoder dial.
+
+## Troubleshooting
+
+**No Sonos devices found**: Verify your subnet is correct and that UPnP is enabled in the Sonos app (Settings > System > Network > UPnP).
+
+**Timeout errors**: Increase the Device Timeout Duration in Global Settings.
+
+**Stale speaker list**: Click "Save and Reconnect" to re-query the network.
+
+**Rate limiting**: The plugin limits status polling to 3 updates per 10-second window per speaker. If a speaker shows as rate limited, it will recover automatically.
+
+**Missing speakers**: If a speaker does not appear in the selector, it may be a satellite (surround channel). Enable **Show Satellite Speakers** in Global Settings to see all devices.
 
 ## Contributing
 
-Feel free to submit issues or pull requests. Contributions are welcome!
+Submit issues or pull requests on [GitHub](https://github.com/jgchristopher/streamdeck-sonoscontroller).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

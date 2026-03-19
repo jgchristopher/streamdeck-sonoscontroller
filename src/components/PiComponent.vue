@@ -8,6 +8,7 @@
           <SonosSelection
             class="mb-3"
             :available-sonos-speakers="availableSonosSpeakers"
+            :show-satellite-speakers="showSatelliteSpeakers"
             v-model="sonosSpeaker"
             @selection-saved="saveSettings"
           ></SonosSelection>
@@ -197,6 +198,10 @@
               >Note: This interval is used to check the status of the device selected for this action (in seconds)</small
             >
             <input id="deviceCheckInterval" v-model="deviceCheckInterval" class="form-control form-control-sm" type="number" />
+            <div class="form-check form-switch mt-2">
+              <input id="chkShowSatellites" v-model="showSatelliteSpeakers" class="form-check-input" type="checkbox" />
+              <label class="form-check-label" for="chkShowSatellites">Show Satellite Speakers</label>
+            </div>
           </div>
 
           <div v-if="sonosError" class="alert alert-danger alert-dismissible" role="alert">
@@ -312,6 +317,7 @@ const displayMarqueeAlbumTitleFor: string[] = ["toggle-play-pause", "currently-p
 const displayMarqueeAlbumTitle: Ref<boolean> = ref(false);
 
 const groupVolumeEnabled: Ref<boolean> = ref(true);
+const showSatelliteSpeakers: Ref<boolean> = ref(false);
 
 const isVolumeAction: Ref<boolean> = ref(false);
 const adjustVolumeIncrement: Ref<number> = ref(10);
@@ -357,6 +363,7 @@ onMounted(() => {
         if (globalSettings.devices) {
           deviceCheckInterval.value = globalSettings.deviceCheckInterval;
           deviceTimeoutDuration.value = globalSettings.deviceTimeoutDuration;
+          showSatelliteSpeakers.value = globalSettings.showSatelliteSpeakers ?? false;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const primaryDevice = Object.values(globalSettings.devices).find((device: any) => device.primary === true) as any;
           if (primaryDevice) {
@@ -557,6 +564,7 @@ async function saveGlobalSettings(): Promise<void> {
         groups: getGroups,
         deviceCheckInterval: deviceCheckInterval.value,
         deviceTimeoutDuration: deviceTimeoutDuration.value,
+        showSatelliteSpeakers: showSatelliteSpeakers.value,
         favorites: getFavorites.list,
       },
     });

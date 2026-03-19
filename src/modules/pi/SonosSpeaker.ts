@@ -5,6 +5,7 @@ export class SonosSpeaker {
   uuid: string;
   targetType: string;
   memberCount: number;
+  isSatellite: boolean;
 
   constructor({
     zoneName,
@@ -26,6 +27,7 @@ export class SonosSpeaker {
     this.uuid = uuid;
     this.targetType = targetType;
     this.memberCount = memberCount;
+    this.isSatellite = isSatellite;
 
     if (targetType === "group" && memberCount > 1) {
       this.title = `${zoneName} [Group: ${memberCount}]`;
