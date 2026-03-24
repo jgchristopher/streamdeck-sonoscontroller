@@ -29,7 +29,9 @@ export class SonosSpeaker {
     this.memberCount = memberCount;
     this.isSatellite = isSatellite;
 
-    if (targetType === "group" && memberCount > 1) {
+    if (targetType === "preset") {
+      this.title = `${zoneName} [Preset: ${memberCount}]`;
+    } else if (targetType === "group" && memberCount > 1) {
       this.title = `${zoneName} [Group: ${memberCount}]`;
     } else {
       this.title = `${zoneName} (${hostAddress})${isSatellite ? " \u{1F6F0}\uFE0F" : ""}`;

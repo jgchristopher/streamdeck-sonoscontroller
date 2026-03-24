@@ -311,7 +311,15 @@ onMounted(async () => {
           speaker.secondsLastChecked! >= deviceCheckInterval.value
         ) {
           let hostAddress: string | null | undefined;
-          if (sonosSpeakerUUID.startsWith("group:")) {
+          if (sonosSpeakerUUID.startsWith("preset:")) {
+            const presetId = sonosSpeakerUUID.replace("preset:", "");
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const presets = (globalSettings.value.groupPresets || []) as Array<Record<string, any>>;
+            const preset = presets.find((p) => p.id === presetId);
+            const firstMemberUUID = preset?.memberUUIDs?.[0] as string | undefined;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            hostAddress = firstMemberUUID ? (globalSettings.value.devices as Record<string, any>)?.[firstMemberUUID]?.hostAddress : null;
+          } else if (sonosSpeakerUUID.startsWith("group:")) {
             const coordUUID = sonosSpeakerUUID.replace("group:", "");
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const group = ((globalSettings.value.groups || []) as Array<Record<string, any>>).find(
@@ -440,9 +448,22 @@ function callAction({
             UUID: sonosSpeakerUUID,
             operationalStatus: SonosSpeakers.OPERATIONAL_STATUS.UPDATING,
           });
+
+          // For presets, inject current member UUIDs from global settings
+          let effectiveSettings = settings;
+          if (settings.uuid?.startsWith("preset:")) {
+            const presetId = settings.uuid.replace("preset:", "");
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const presets = (globalSettings.value.groupPresets || []) as Array<Record<string, any>>;
+            const preset = presets.find((p) => p.id === presetId);
+            if (preset?.memberUUIDs) {
+              effectiveSettings = { ...settings, presetMemberUUIDs: preset.memberUUIDs as string[] };
+            }
+          }
+
           const actionResult = await actionFunction({
             inContext,
-            inActionSettings: settings,
+            inActionSettings: effectiveSettings,
             inSonosSpeakerState: speaker.state as SpeakerState,
             inRotation,
             deviceTimeoutDuration: deviceTimeoutDuration.value,

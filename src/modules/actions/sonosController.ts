@@ -173,6 +173,32 @@ async function resolveActionTarget(
     `[resolveActionTarget] uuid=${uuid}, commandType=${commandType}, fallbackHost=${fallbackHost}, groupVolumeEnabled=${inActionSettings.groupVolumeEnabled}`,
   );
 
+  if (uuid?.startsWith("preset:")) {
+    const memberUUIDs = inActionSettings.presetMemberUUIDs;
+    if (memberUUIDs && memberUUIDs.length >= 2) {
+      try {
+        const sonosController = new SonosController();
+        sonosController.connect(fallbackHost);
+
+        if (commandType === "read") {
+          // Read-only actions: just resolve the coordinator host without forming/checking groups
+          const coordLocation = await sonosController.getDeviceLocationByUUID(memberUUIDs[0]!);
+          return { host: coordLocation.host };
+        }
+
+        const groupResult = await sonosController.formGroupFromPreset(memberUUIDs);
+        const result: ActionTarget = { host: groupResult.coordinatorHost };
+        if (commandType === "volume" && inActionSettings.groupVolumeEnabled) {
+          result.groupMembers = groupResult.groupMembers;
+        }
+        return result;
+      } catch (error) {
+        console.log(`[resolveActionTarget] Preset grouping failed, using direct host: ${(error as Error).message}`);
+      }
+    }
+    return { host: fallbackHost };
+  }
+
   if (uuid?.startsWith("group:")) {
     const coordUUID = uuid.replace("group:", "");
     try {
@@ -1661,7 +1687,7 @@ export async function refresh_speaker_state_action({
     };
   }
   try {
-    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
+    const target = await resolveActionTarget(inActionSettings, { commandType: "read" });
     const sonosController = new SonosController();
     sonosController.connect(target.host);
 
