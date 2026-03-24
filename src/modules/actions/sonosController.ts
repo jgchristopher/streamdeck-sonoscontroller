@@ -554,7 +554,7 @@ export async function toggle_mute_unmute_action({
     const newMuteState = !isMuted;
     const currentVolume = inSonosSpeakerState?.audioEqualizer?.volume || 0;
 
-    const isGroupTarget = inActionSettings.uuid?.startsWith("group:");
+    const isGroupTarget = inActionSettings.uuid?.startsWith("group:") || inActionSettings.uuid?.startsWith("preset:");
     const target = await resolveActionTarget(inActionSettings, {
       commandType: isGroupTarget ? "volume" : "transport",
     });
