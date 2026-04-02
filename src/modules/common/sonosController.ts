@@ -261,9 +261,7 @@ export class SonosController {
     coordController.connect(coordinatorLocation.host, coordinatorLocation.port);
     await coordController.leaveGroup();
 
-    const groupMembers: { host: string; port: number }[] = [
-      { host: coordinatorLocation.host, port: coordinatorLocation.port },
-    ];
+    const groupMembers: { host: string; port: number }[] = [{ host: coordinatorLocation.host, port: coordinatorLocation.port }];
 
     // Join remaining members sequentially to avoid Sonos race conditions
     for (let i = 1; i < memberUUIDs.length; i++) {

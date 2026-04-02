@@ -17,7 +17,10 @@
       <div class="alert alert-light" v-if="selectedSonosSpeaker">
         <div class="text-center">{{ selectedSonosSpeaker.title }}</div>
       </div>
-      <div class="form-check form-switch" v-if="selectedSonosSpeaker?.targetType === 'group' || selectedSonosSpeaker?.targetType === 'preset'">
+      <div
+        class="form-check form-switch"
+        v-if="selectedSonosSpeaker?.targetType === 'group' || selectedSonosSpeaker?.targetType === 'preset'"
+      >
         <input
           id="chkGroupVolume"
           v-model="groupVolumeEnabled"
@@ -215,7 +218,9 @@
             <div v-for="preset in groupPresets" :key="preset.id" class="d-flex align-items-center justify-content-between mb-1">
               <small>{{ preset.name }} ({{ preset.memberUUIDs.length }} speakers)</small>
               <div>
-                <button class="btn btn-sm btn-outline-secondary me-1" type="button" @click="startEditPreset(preset)">Edit</button>
+                <button class="btn btn-sm btn-outline-secondary me-1" type="button" @click="startEditPreset(preset)">
+                  Edit
+                </button>
                 <button class="btn btn-sm btn-outline-danger" type="button" @click="deletePreset(preset.id)">Delete</button>
               </div>
             </div>
@@ -231,7 +236,13 @@
           <div v-if="showPresetForm" class="border rounded p-2 mb-2">
             <div class="mb-2">
               <label class="form-label" for="presetNameInput">Preset Name</label>
-              <input id="presetNameInput" v-model="presetName" class="form-control form-control-sm" type="text" placeholder="e.g. Office Speakers" />
+              <input
+                id="presetNameInput"
+                v-model="presetName"
+                class="form-control form-control-sm"
+                type="text"
+                placeholder="e.g. Office Speakers"
+              />
             </div>
             <div class="mb-2">
               <label class="form-label">Select Speakers (min 2)</label>

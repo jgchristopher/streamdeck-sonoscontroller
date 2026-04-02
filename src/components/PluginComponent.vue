@@ -316,9 +316,23 @@ onMounted(async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const presets = (globalSettings.value.groupPresets || []) as Array<Record<string, any>>;
             const preset = presets.find((p) => p.id === presetId);
-            const firstMemberUUID = preset?.memberUUIDs?.[0] as string | undefined;
+            const memberUUIDs = (preset?.memberUUIDs ?? []) as string[];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            hostAddress = firstMemberUUID ? (globalSettings.value.devices as Record<string, any>)?.[firstMemberUUID]?.hostAddress : null;
+            const devices = globalSettings.value.devices as Record<string, any> | undefined;
+
+            // Find the coordinator by checking current group topology for any preset member
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const groups = (globalSettings.value.groups || []) as Array<Record<string, any>>;
+            const memberSet = new Set(memberUUIDs);
+            const matchingGroup = groups.find((g) =>
+              (g.members as Array<{ uuid: string }>)?.some((m) => memberSet.has(m.uuid)),
+            );
+            if (matchingGroup) {
+              hostAddress = matchingGroup.coordinatorHost as string;
+            } else {
+              const firstMemberUUID = memberUUIDs[0];
+              hostAddress = firstMemberUUID ? devices?.[firstMemberUUID]?.hostAddress : null;
+            }
           } else if (sonosSpeakerUUID.startsWith("group:")) {
             const coordUUID = sonosSpeakerUUID.replace("group:", "");
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

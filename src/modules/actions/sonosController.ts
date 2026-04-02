@@ -181,9 +181,16 @@ async function resolveActionTarget(
         sonosController.connect(fallbackHost);
 
         if (commandType === "read") {
-          // Read-only actions: just resolve the coordinator host without forming/checking groups
-          const coordLocation = await sonosController.getDeviceLocationByUUID(memberUUIDs[0]!);
-          return { host: coordLocation.host };
+          // Read-only actions: find the coordinator from current topology
+          const groups = await sonosController.getGroups();
+          const memberSet = new Set(memberUUIDs);
+          const matchingGroup = groups.find((g) => g.members.some((m) => memberSet.has(m.uuid)));
+          if (matchingGroup) {
+            return { host: matchingGroup.coordinatorHost };
+          }
+          // Fallback: look up first member directly if no matching group found
+          const memberLocation = await sonosController.getDeviceLocationByUUID(memberUUIDs[0]!);
+          return { host: memberLocation.host };
         }
 
         const groupResult = await sonosController.formGroupFromPreset(memberUUIDs);
