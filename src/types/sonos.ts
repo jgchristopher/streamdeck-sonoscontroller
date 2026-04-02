@@ -98,6 +98,12 @@ export interface InputSourceMapping {
   suffix: () => string;
 }
 
+export interface GroupPreset {
+  id: string;
+  name: string;
+  memberUUIDs: string[];
+}
+
 export interface InputSourceMappingResult {
   sourceName: string | undefined;
   generateUri: Record<string, { prefix: string; suffix: string }>;

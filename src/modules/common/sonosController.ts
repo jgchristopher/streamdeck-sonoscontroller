@@ -217,6 +217,68 @@ export class SonosController {
     throw new Error(`Device with UUID ${uuid} not found`);
   }
 
+  async joinGroup(coordinatorUUID: string): Promise<SoapResponse> {
+    return this.setAVTransportURI(`x-rincon:${coordinatorUUID}`);
+  }
+
+  async leaveGroup(): Promise<SoapResponse> {
+    return this.avTransport.execute("BecomeCoordinatorOfStandaloneGroup", { CurrentSpeed: 1 });
+  }
+
+  async formGroupFromPreset(
+    memberUUIDs: string[],
+  ): Promise<{ coordinatorHost: string; coordinatorPort: number; groupMembers: { host: string; port: number }[] }> {
+    if (memberUUIDs.length < 2) {
+      throw new Error("A group preset requires at least 2 members");
+    }
+
+    const coordinatorUUID = memberUUIDs[0]!;
+
+    // Check if the preset group already exists in the current topology
+    const groups = await this.getGroups();
+    const existingGroup = this.resolveGroupForUUID(groups, coordinatorUUID);
+    if (existingGroup) {
+      const existingMemberUUIDs = new Set(existingGroup.members.map((m) => m.uuid));
+      const allPresent = memberUUIDs.every((uuid) => existingMemberUUIDs.has(uuid));
+      const sameSize = existingGroup.members.length === memberUUIDs.length;
+
+      if (allPresent && sameSize) {
+        // Group already matches the preset, no regrouping needed
+        return {
+          coordinatorHost: existingGroup.coordinatorHost,
+          coordinatorPort: existingGroup.coordinatorPort,
+          groupMembers: existingGroup.members
+            .filter((m) => m.host !== null && m.port !== null)
+            .map((m) => ({ host: m.host!, port: m.port! })),
+        };
+      }
+    }
+
+    const coordinatorLocation = await this.getDeviceLocationByUUID(coordinatorUUID);
+
+    // Make coordinator standalone first
+    const coordController = new SonosController();
+    coordController.connect(coordinatorLocation.host, coordinatorLocation.port);
+    await coordController.leaveGroup();
+
+    const groupMembers: { host: string; port: number }[] = [{ host: coordinatorLocation.host, port: coordinatorLocation.port }];
+
+    // Join remaining members sequentially to avoid Sonos race conditions
+    for (let i = 1; i < memberUUIDs.length; i++) {
+      const memberLocation = await this.getDeviceLocationByUUID(memberUUIDs[i]!);
+      const memberController = new SonosController();
+      memberController.connect(memberLocation.host, memberLocation.port);
+      await memberController.joinGroup(coordinatorUUID);
+      groupMembers.push({ host: memberLocation.host, port: memberLocation.port });
+    }
+
+    return {
+      coordinatorHost: coordinatorLocation.host,
+      coordinatorPort: coordinatorLocation.port,
+      groupMembers,
+    };
+  }
+
   async getDeviceCapabilities(): Promise<SoapResponse> {
     return this.avTransport.execute("GetDeviceCapabilities");
   }

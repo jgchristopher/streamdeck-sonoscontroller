@@ -29,6 +29,7 @@ export interface ActionSettings {
   marqueeWidth?: number;
   marqueePositionTop?: number;
   marqueePositionBottom?: number;
+  presetMemberUUIDs?: string[];
   speakerKey?: string;
   status?: {
     titleLastUpdated?: number;

@@ -17,7 +17,10 @@
       <div class="alert alert-light" v-if="selectedSonosSpeaker">
         <div class="text-center">{{ selectedSonosSpeaker.title }}</div>
       </div>
-      <div class="form-check form-switch" v-if="selectedSonosSpeaker?.targetType === 'group'">
+      <div
+        class="form-check form-switch"
+        v-if="selectedSonosSpeaker?.targetType === 'group' || selectedSonosSpeaker?.targetType === 'preset'"
+      >
         <input
           id="chkGroupVolume"
           v-model="groupVolumeEnabled"
@@ -209,6 +212,66 @@
             <button class="btn-close" type="button" @click="sonosError = ''"></button>
           </div>
         </AccordeonItem>
+
+        <AccordeonItem v-if="sonosConnectionState === OPERATIONAL_STATUS.CONNECTED" title="Saved Group Presets">
+          <div v-if="groupPresets.length > 0" class="mb-2">
+            <div v-for="preset in groupPresets" :key="preset.id" class="d-flex align-items-center justify-content-between mb-1">
+              <small>{{ preset.name }} ({{ preset.memberUUIDs.length }} speakers)</small>
+              <div>
+                <button class="btn btn-sm btn-outline-secondary me-1" type="button" @click="startEditPreset(preset)">
+                  Edit
+                </button>
+                <button class="btn btn-sm btn-outline-danger" type="button" @click="deletePreset(preset.id)">Delete</button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="mb-2">
+            <small class="text-muted">No presets defined yet.</small>
+          </div>
+
+          <button v-if="!showPresetForm" class="btn btn-sm btn-outline-primary mb-2" type="button" @click="startNewPreset">
+            New Preset
+          </button>
+
+          <div v-if="showPresetForm" class="border rounded p-2 mb-2">
+            <div class="mb-2">
+              <label class="form-label" for="presetNameInput">Preset Name</label>
+              <input
+                id="presetNameInput"
+                v-model="presetName"
+                class="form-control form-control-sm"
+                type="text"
+                placeholder="e.g. Office Speakers"
+              />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Select Speakers (min 2)</label>
+              <div v-for="speaker in availablePresetSpeakers" :key="speaker.uuid" class="form-check">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  :id="'preset-member-' + speaker.uuid"
+                  :value="speaker.uuid"
+                  v-model="presetSelectedMembers"
+                />
+                <label class="form-check-label" :for="'preset-member-' + speaker.uuid">
+                  {{ speaker.zoneName }} ({{ speaker.hostAddress }})
+                </label>
+              </div>
+            </div>
+            <div class="d-flex gap-1">
+              <button
+                class="btn btn-sm btn-primary"
+                type="button"
+                :disabled="!presetName || presetSelectedMembers.length < 2"
+                @click="savePreset"
+              >
+                {{ editingPreset ? "Update" : "Create" }}
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" type="button" @click="cancelPresetForm">Cancel</button>
+            </div>
+          </div>
+        </AccordeonItem>
       </AccordeonComponent>
       <button
         :disabled="!isSonosSettingsComplete || sonosConnectionState === OPERATIONAL_STATUS.CONNECTING"
@@ -241,7 +304,7 @@ import { Buffer } from "buffer";
 import SonosSelection from "@/components/SonosSelection.vue";
 import manifest from "@manifest";
 import type { ManifestAction, ManifestState } from "@manifest";
-import type { SonosGroup } from "@/types/sonos";
+import type { SonosGroup, GroupPreset } from "@/types/sonos";
 import type { OperationalStatusValue } from "@/types/speakers";
 
 interface SonosFavoriteOption {
@@ -326,6 +389,14 @@ const isEncoderAudioEqualizer: Ref<boolean> = ref(false);
 const availableEqualizerTargets: Ref<string[]> = ref(["volume", "bass", "treble"]);
 const encoderAudioEqualizerTarget: Ref<string> = ref("");
 
+const groupPresets: Ref<GroupPreset[]> = ref([]);
+const presetName: Ref<string> = ref("");
+const presetSelectedMembers: Ref<string[]> = ref([]);
+const editingPreset: Ref<GroupPreset | null> = ref(null);
+const showPresetForm: Ref<boolean> = ref(false);
+const lastLoadedDevices: Ref<Record<string, unknown>> = ref({});
+const lastGlobalSettings: Ref<GlobalSettings> = ref({});
+
 onMounted(() => {
   window.connectElgatoStreamDeckSocket = (
     exPort: string,
@@ -364,6 +435,9 @@ onMounted(() => {
           deviceCheckInterval.value = globalSettings.deviceCheckInterval;
           deviceTimeoutDuration.value = globalSettings.deviceTimeoutDuration;
           showSatelliteSpeakers.value = globalSettings.showSatelliteSpeakers ?? false;
+          groupPresets.value = globalSettings.groupPresets ?? [];
+          lastLoadedDevices.value = globalSettings.devices;
+          lastGlobalSettings.value = globalSettings;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const primaryDevice = Object.values(globalSettings.devices).find((device: any) => device.primary === true) as any;
           if (primaryDevice) {
@@ -434,6 +508,7 @@ onMounted(() => {
             refreshAvailableSonosSpeakers({
               inDevices: globalSettings.devices,
               inGroups: globalSettings.groups || [],
+              inGroupPresets: groupPresets.value,
               inActionSettings: actionSettings.value,
               triggerSaveSettings: !actionSettings.value || Object.keys(actionSettings.value).length === 0,
             });
@@ -459,12 +534,14 @@ const selectedSonosSpeaker = computed(() =>
 function refreshAvailableSonosSpeakers({
   inDevices,
   inGroups = [],
+  inGroupPresets = [],
   inActionSettings = {},
   triggerSaveSettings = true,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inDevices: Record<string, any>;
   inGroups?: SonosGroup[];
+  inGroupPresets?: GroupPreset[];
   inActionSettings?: ActionSettings;
   triggerSaveSettings?: boolean;
 }): void {
@@ -500,7 +577,25 @@ function refreshAvailableSonosSpeakers({
       a.title.toLowerCase() > b.title.toLowerCase() ? 1 : b.title.toLowerCase() > a.title.toLowerCase() ? -1 : 0,
     );
 
-  availableSonosSpeakers.value = [...groupEntries, ...speakers];
+  // Build preset entries using the first member's host as the fallback address
+  const presetEntries = inGroupPresets
+    .map((p) => {
+      const firstMemberUUID = p.memberUUIDs[0];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const firstDevice = firstMemberUUID ? (inDevices as Record<string, any>)[firstMemberUUID] : undefined;
+      return new SonosSpeaker({
+        zoneName: p.name,
+        hostAddress: firstDevice?.hostAddress ?? "",
+        uuid: `preset:${p.id}`,
+        targetType: "preset",
+        memberCount: p.memberUUIDs.length,
+      });
+    })
+    .sort((a, b) =>
+      a.title.toLowerCase() > b.title.toLowerCase() ? 1 : b.title.toLowerCase() > a.title.toLowerCase() ? -1 : 0,
+    );
+
+  availableSonosSpeakers.value = [...presetEntries, ...groupEntries, ...speakers];
 
   if (inActionSettings?.uuid) {
     sonosSpeaker.value = inActionSettings.uuid;
@@ -511,9 +606,11 @@ function refreshAvailableSonosSpeakers({
   } else {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const primaryDevice = Object.values(inDevices).find((device: any) => device.primary === true) as any;
-    sonosSpeaker.value = primaryDevice.uuid;
-    if (triggerSaveSettings) {
-      saveSettings();
+    if (primaryDevice) {
+      sonosSpeaker.value = primaryDevice.uuid;
+      if (triggerSaveSettings) {
+        saveSettings();
+      }
     }
   }
 }
@@ -553,15 +650,18 @@ async function saveGlobalSettings(): Promise<void> {
     const getFavorites = await Promise.race([$SONOS.getFavorites(), timeout("getting favorites")]);
     const getGroups = await Promise.race([$SONOS.getGroups(), timeout("getting groups")]);
     sonosConnectionState.value = OPERATIONAL_STATUS.CONNECTED;
+    lastLoadedDevices.value = getDevices.list;
     refreshAvailableSonosSpeakers({
       inDevices: getDevices.list,
       inGroups: getGroups as SonosGroup[],
+      inGroupPresets: groupPresets.value,
       inActionSettings: actionSettings.value,
     });
     streamDeckConnection.value!.saveGlobalSettings({
       payload: {
         devices: getDevices.list,
         groups: getGroups,
+        groupPresets: groupPresets.value,
         deviceCheckInterval: deviceCheckInterval.value,
         deviceTimeoutDuration: deviceTimeoutDuration.value,
         showSatelliteSpeakers: showSatelliteSpeakers.value,
@@ -576,6 +676,15 @@ async function saveGlobalSettings(): Promise<void> {
 }
 
 function saveSettings(): void {
+  const isPreset = selectedSonosSpeaker.value!.uuid.startsWith("preset:");
+  const isGroup = selectedSonosSpeaker.value!.targetType === "group";
+  let presetMemberUUIDs: string[] | undefined;
+  if (isPreset) {
+    const presetId = selectedSonosSpeaker.value!.uuid.replace("preset:", "");
+    const preset = groupPresets.value.find((p) => p.id === presetId);
+    presetMemberUUIDs = preset?.memberUUIDs;
+  }
+
   actionSettings.value = {
     action: action.value,
     states: manifestAction.value?.States,
@@ -585,7 +694,8 @@ function saveSettings(): void {
     hostAddress: selectedSonosSpeaker.value!.hostAddress,
     zoneName: selectedSonosSpeaker.value!.zoneName,
     targetType: selectedSonosSpeaker.value!.targetType || "speaker",
-    groupVolumeEnabled: selectedSonosSpeaker.value!.targetType === "group" ? groupVolumeEnabled.value : false,
+    groupVolumeEnabled: isGroup || isPreset ? groupVolumeEnabled.value : false,
+    presetMemberUUIDs,
     selectedPlayModes: selectedPlayModes.value || [],
     selectedInputSources: selectedInputSources.value || [],
     adjustVolumeIncrement: adjustVolumeIncrement.value,
@@ -605,6 +715,79 @@ function saveSettings(): void {
   };
   streamDeckConnection.value!.saveSettings({
     actionSettings: actionSettings.value,
+  });
+}
+
+const availablePresetSpeakers = computed(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return Object.values(lastLoadedDevices.value as Record<string, any>)
+    .filter((d) => !d.isSatellite)
+    .map((d) => ({ uuid: d.uuid as string, zoneName: d.zoneName as string, hostAddress: d.hostAddress as string }))
+    .sort((a, b) => a.zoneName.localeCompare(b.zoneName));
+});
+
+function startNewPreset(): void {
+  editingPreset.value = null;
+  presetName.value = "";
+  presetSelectedMembers.value = [];
+  showPresetForm.value = true;
+}
+
+function startEditPreset(preset: GroupPreset): void {
+  editingPreset.value = preset;
+  presetName.value = preset.name;
+  presetSelectedMembers.value = [...preset.memberUUIDs];
+  showPresetForm.value = true;
+}
+
+function cancelPresetForm(): void {
+  showPresetForm.value = false;
+  editingPreset.value = null;
+  presetName.value = "";
+  presetSelectedMembers.value = [];
+}
+
+function savePreset(): void {
+  if (editingPreset.value) {
+    const idx = groupPresets.value.findIndex((p) => p.id === editingPreset.value!.id);
+    if (idx !== -1) {
+      groupPresets.value[idx] = {
+        id: editingPreset.value.id,
+        name: presetName.value,
+        memberUUIDs: [...presetSelectedMembers.value],
+      };
+    }
+  } else {
+    groupPresets.value.push({
+      id: crypto.randomUUID(),
+      name: presetName.value,
+      memberUUIDs: [...presetSelectedMembers.value],
+    });
+  }
+  cancelPresetForm();
+  persistPresets();
+}
+
+function deletePreset(id: string): void {
+  groupPresets.value = groupPresets.value.filter((p) => p.id !== id);
+  persistPresets();
+}
+
+function persistPresets(): void {
+  // Refresh the speaker list to reflect preset changes
+  refreshAvailableSonosSpeakers({
+    inDevices: lastLoadedDevices.value as Record<string, unknown>,
+    inGroupPresets: groupPresets.value,
+    inActionSettings: actionSettings.value,
+    triggerSaveSettings: false,
+  });
+
+  // Save presets to global settings without reconnecting, preserving all existing keys
+  streamDeckConnection.value!.saveGlobalSettings({
+    payload: {
+      ...lastGlobalSettings.value,
+      groupPresets: groupPresets.value,
+    },
   });
 }
 </script>

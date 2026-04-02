@@ -173,6 +173,39 @@ async function resolveActionTarget(
     `[resolveActionTarget] uuid=${uuid}, commandType=${commandType}, fallbackHost=${fallbackHost}, groupVolumeEnabled=${inActionSettings.groupVolumeEnabled}`,
   );
 
+  if (uuid?.startsWith("preset:")) {
+    const memberUUIDs = inActionSettings.presetMemberUUIDs;
+    if (memberUUIDs && memberUUIDs.length >= 2) {
+      try {
+        const sonosController = new SonosController();
+        sonosController.connect(fallbackHost);
+
+        if (commandType === "read") {
+          // Read-only actions: find the coordinator from current topology
+          const groups = await sonosController.getGroups();
+          const memberSet = new Set(memberUUIDs);
+          const matchingGroup = groups.find((g) => g.members.some((m) => memberSet.has(m.uuid)));
+          if (matchingGroup) {
+            return { host: matchingGroup.coordinatorHost };
+          }
+          // Fallback: look up first member directly if no matching group found
+          const memberLocation = await sonosController.getDeviceLocationByUUID(memberUUIDs[0]!);
+          return { host: memberLocation.host };
+        }
+
+        const groupResult = await sonosController.formGroupFromPreset(memberUUIDs);
+        const result: ActionTarget = { host: groupResult.coordinatorHost };
+        if (commandType === "volume" && inActionSettings.groupVolumeEnabled) {
+          result.groupMembers = groupResult.groupMembers;
+        }
+        return result;
+      } catch (error) {
+        console.log(`[resolveActionTarget] Preset grouping failed, using direct host: ${(error as Error).message}`);
+      }
+    }
+    return { host: fallbackHost };
+  }
+
   if (uuid?.startsWith("group:")) {
     const coordUUID = uuid.replace("group:", "");
     try {
@@ -528,7 +561,7 @@ export async function toggle_mute_unmute_action({
     const newMuteState = !isMuted;
     const currentVolume = inSonosSpeakerState?.audioEqualizer?.volume || 0;
 
-    const isGroupTarget = inActionSettings.uuid?.startsWith("group:");
+    const isGroupTarget = inActionSettings.uuid?.startsWith("group:") || inActionSettings.uuid?.startsWith("preset:");
     const target = await resolveActionTarget(inActionSettings, {
       commandType: isGroupTarget ? "volume" : "transport",
     });
@@ -1661,7 +1694,7 @@ export async function refresh_speaker_state_action({
     };
   }
   try {
-    const target = await resolveActionTarget(inActionSettings, { commandType: "transport" });
+    const target = await resolveActionTarget(inActionSettings, { commandType: "read" });
     const sonosController = new SonosController();
     sonosController.connect(target.host);
 

@@ -13,6 +13,18 @@
       :value="modelValue"
       class="form-select form-select-sm mb-1"
     >
+      <optgroup v-if="filteredPresets.length > 0" label="Saved Group Presets">
+        <option
+          v-for="sonosSpeaker in filteredPresets"
+          v-bind:key="sonosSpeaker.uuid"
+          :value="sonosSpeaker.uuid"
+          :title="sonosSpeaker?.title"
+          :hostAddress="sonosSpeaker?.hostAddress"
+          :zoneName="sonosSpeaker?.zoneName"
+        >
+          {{ sonosSpeaker.title }}
+        </option>
+      </optgroup>
       <optgroup v-if="filteredGroups.length > 0" label="Groups">
         <option
           v-for="sonosSpeaker in filteredGroups"
@@ -71,13 +83,19 @@ const applyFilter = (list: SonosSpeaker[]): SonosSpeaker[] => {
   });
 };
 
+const filteredPresets = computed(() => {
+  return applyFilter(props.availableSonosSpeakers.filter((s) => s.targetType === "preset"));
+});
+
 const filteredGroups = computed(() => {
   return applyFilter(props.availableSonosSpeakers.filter((s) => s.targetType === "group"));
 });
 
 const filteredSpeakers = computed(() => {
   return applyFilter(
-    props.availableSonosSpeakers.filter((s) => s.targetType !== "group" && (props.showSatelliteSpeakers || !s.isSatellite)),
+    props.availableSonosSpeakers.filter(
+      (s) => s.targetType !== "group" && s.targetType !== "preset" && (props.showSatelliteSpeakers || !s.isSatellite),
+    ),
   );
 });
 </script>
